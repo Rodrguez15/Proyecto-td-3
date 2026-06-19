@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vilamir Gym</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+
+    <div class="logo-titulo">
+        Vilamir Gym
+    </div>
+
+    <nav class="menu">
+
+        <a href="#">Inicio</a>
+        <a href="#">clases</a>
+        <a href="#">Eventos</a>
+        <a href="#">Clasificacione</a>
+        <a href="#">Noticias</a>
+        <a href="#">Contacto</a>
+
+       <a href="#" onclick="cerrarSesion()">
+                Cerrar sesión
+            </a>
+    </nav>
+
+</header>
+
+<main>
+
+<div class="contenedor-inicio">
+
+<h1 id="saludo"></h1>
+
+<p>
+    Bienvenido al sistema de gestión de vilamir.
+</p>
+
+<p>
+    Desde aquí podrás administrar las clases,
+    horarios y demas.
+</p>
+
+
+ <div class="panel">
+
+            <div class="opcion">
+                <h2>Clases</h2>
+                <p>Gestionar información de las clases</p>
+            </div>
+
+            <div class="opcion">
+                <h2>Eventos</h2>
+                <p>Administrar próximos eventos.</p>
+            </div>
+
+            <div class="opcion">
+                <h2>Clasificaciones</h2>
+                <p>Consultar rankings y estadísticas.</p>
+            </div>
+
+            <div class="opcion">
+                <h2>Noticias</h2>
+                <p>Ver las últimas novedades de Vilamir Gym.</p>
+            </div>
+
+
+</div>
+
+</main>
+
+<script>
+
+let usuario = JSON.parse(localStorage.getItem("usuarioActivo"));
+
+if(!usuario){
+   
+}
+
+document.getElementById("saludo").textContent =
+"Bienvenido" + usuario.nombre;
+
+function cerrarSesion(){
+
+    localStorage.removeItem("usuarioActivo");
+
+    window.location.href = "inicio.html";
+
+}
+
+</script>
+
+</body>
+</html>
