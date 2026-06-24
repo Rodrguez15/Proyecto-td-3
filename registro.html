@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MMA Systems - Registro</title>
+
+    <link rel="stylesheet" href="css/style.css">
+
+</head>
+
+<body>
+
+    <header class="navbar">
+
+        <div class="logo">
+
+            Escuela Combate VILAMIR
+
+        </div>
+
+        <nav>
+
+            <a href="login.html">Iniciar sesión</a>
+
+            <a href="about.html">About Us</a>
+
+        </nav>
+
+    </header>
+
+    <main class="container">
+
+        <section class="login-card">
+
+            <h1>Crear cuenta</h1>
+
+            <p>Completa la información a continuación.</p>
+
+            <form id="registerForm">
+
+                <label>Nombre</label>
+
+                <input
+                    type="text"
+                    id="nombre"
+                    placeholder="Ingrese su nombre"
+                    required>
+
+                <label>Apellido</label>
+
+                <input
+                    type="text"
+                    id="apellido"
+                    placeholder="Ingrese su apellido"
+                    required>
+
+                <label>Correo electronico</label>
+
+                <input
+                    type="email"
+                    id="email"
+                    placeholder="Ingrese su correo"
+                    required>
+
+                <label>Contraseña</label>
+
+                <input
+                    type="password"
+                    id="password"
+                    placeholder="Ingrese su contraseña"
+                    required>
+
+                <label>Confirmar contraseña</label>
+
+                <input
+                    type="password"
+                    id="confirmPassword"
+                    placeholder="Repita la contraseña"
+                    required>
+
+                <button type="submit">
+
+                    Registrar
+
+                </button>
+
+            </form>
+
+            <p class="register-link">
+
+                ¿Ya tienes una cuenta?
+
+                <a href="login.html">
+
+                    Inicia sesión aquí
+
+                </a>
+
+            </p>
+
+            <p id="mensaje"></p>
+
+        </section>
+
+    </main>
+
+    <footer>
+
+        © 2026 MMA Systems
+
+    </footer>
+
+    <script src="js/registrar.js"></script>
+
+</body>
+
+</html>
