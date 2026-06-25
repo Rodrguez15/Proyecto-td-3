@@ -1,0 +1,431 @@
+/* ==========================
+   CONFIGURACIÓN GENERAL
+========================== */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+
+    background:
+    radial-gradient(circle at top right,
+    rgba(179,0,0,.35),
+    transparent 35%),
+
+    radial-gradient(circle at bottom left,
+    rgba(120,0,0,.25),
+    transparent 30%),
+
+    #111111;
+}
+
+/* ==========================
+   BARRA DE NAVEGACIÓN
+========================== */
+
+.navbar{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    padding:18px 40px;
+
+    background:#111;
+
+    border-bottom:3px solid #b30000;
+
+    box-shadow: 0 0 15px rgba(179,0,0,.25);
+
+}
+
+.navbar nav{
+
+    display:flex;
+
+    gap:30px;
+
+}
+
+.logo{
+
+    color:#d10000;
+
+    font-size:28px;
+
+    font-weight:700;
+
+    letter-spacing:1px;
+
+}
+
+.navbar nav a{
+
+    color:white;
+
+    text-decoration:none;
+
+    font-weight:bold;
+
+    transition:.3s;
+
+}
+
+.navbar nav a:hover{
+
+    color:#d10000;
+
+}
+
+/* ==========================
+   CONTENEDOR PRINCIPAL
+========================== */
+
+.container{
+
+    width:100%;
+    min-height:85vh;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+/* ==========================
+   TARJETA LOGIN
+========================== */
+
+.login-card{
+
+    width:420px;
+
+    background:white;
+
+    padding:35px;
+
+    border-radius:12px;
+
+    box-shadow:0 8px 20px rgba(0,0,0,.12);
+}
+
+.login-card h1{
+
+    text-align:center;
+
+    margin-bottom:10px;
+}
+
+.login-card p{
+
+    text-align:center;
+
+    margin-bottom:25px;
+
+    color:#666;
+}
+
+/* ==========================
+   FORMULARIO
+========================== */
+
+label{
+
+    display:block;
+
+    margin-top:15px;
+    margin-bottom:6px;
+
+    font-weight:bold;
+}
+
+input{
+
+    width:100%;
+
+    padding:12px;
+
+    border:1px solid #ccc;
+
+    border-radius:6px;
+
+    transition:.3s;
+}
+
+input:focus{
+
+    outline:none;
+
+    border-color:#b30000;
+
+    box-shadow:0 0 10px rgba(179,0,0,.20);
+}
+
+/* ==========================
+   BOTÓN
+========================== */
+
+button{
+
+    width:100%;
+
+    margin-top:25px;
+
+    padding:13px;
+
+    border:none;
+
+    border-radius:6px;
+
+    background:#b30000;
+
+    color:white;
+
+    font-size:16px;
+
+    cursor:pointer;
+
+    transition:.3s;
+}
+
+button:hover{
+
+    background:#8d0000;
+}
+
+/* ==========================
+   MENSAJES
+========================== */
+
+#mensaje{
+
+    margin-top:18px;
+
+    text-align:center;
+
+    font-weight:bold;
+}
+
+/* ==========================
+   FOOTER
+========================== */
+
+footer{
+
+    text-align:center;
+
+    padding:18px;
+
+    color:#777;
+
+    font-size:13px;
+}
+
+/* ==========================
+   ENLACE REGISTRO
+========================== */
+
+.register-link{
+
+    text-align:center;
+
+    margin-top:20px;
+
+    font-size:14px;
+}
+
+.register-link a{
+
+    color:#b30000;
+
+    text-decoration:none;
+
+    font-weight:bold;
+}
+
+.register-link a:hover{
+
+    text-decoration:underline;
+}
+
+/*====================================
+            ABOUT US
+====================================*/
+
+.about-container{
+
+    width:90%;
+    max-width:1200px;
+
+    margin:50px auto;
+
+    text-align:center;
+}
+
+.about-container h1{
+    margin-bottom:40px;
+    color:#ffffff;
+}
+
+/* Tarjetas */
+
+.team{
+
+    display:flex;
+
+    justify-content:center;
+
+    gap:30px;
+
+    flex-wrap:wrap;
+
+    margin-bottom:50px;
+}
+
+.member{
+
+    width:320px;
+
+    background:rgb(36, 18, 18);
+
+    border-top:6px solid #a50101;
+
+    border-radius:15px;
+
+    padding:30px;
+
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+
+    transition:all .3s ease;
+
+}
+
+.member:hover{
+
+    transform:scale(1.04);
+
+    box-shadow:0 20px 45px rgba(179,0,0,.45);
+
+}
+
+.member:hover{
+
+    transform:translateY(-8px);
+
+    box-shadow:
+    0 15px 35px rgba(179,0,0,.25);
+
+}
+
+/* Imagen */
+
+.member img{
+
+    width:150px;
+
+    height:150px;
+
+    object-fit:cover;
+
+    border-radius:50%;
+
+    margin-bottom:20px;
+
+    border:4px solid #b30000;
+}
+
+.member h2{
+
+    color:#d1d0d0;
+
+    font-size:24px;
+
+    font-weight:700;
+
+    margin-bottom:10px;
+
+}
+
+.member h3{
+
+    color:#b30000;
+
+    margin-bottom:15px;
+
+    font-size:18px;
+}
+
+.member p{
+
+    color:#bbbaba;
+
+    line-height:1.6;
+
+    text-align:justify;
+}
+
+/* Project Information */
+
+.project-info{
+
+    background:rgb(36, 18, 18);
+
+    padding:35px;
+
+    border-radius:15px;
+
+    box-shadow:0 5px 20px rgba(0,0,0,.15);
+
+    max-width:950px;
+
+    margin:auto;
+}
+
+.project-info h2{
+
+    margin-bottom:20px;
+
+    color:#b30000;
+}
+
+.project-info p{
+
+    line-height:1.8;
+
+    color:#cfcfcf;
+
+    text-align:justify;
+}
+
+.about-page{
+
+    background:
+    radial-gradient(circle at top right,
+    rgba(179,0,0,.35),
+    transparent 35%),
+
+    radial-gradient(circle at bottom left,
+    rgba(120,0,0,.25),
+    transparent 30%),
+
+    #000000;
+}
+
+.role{
+
+    display:block;
+
+    color:#b30000;
+
+    font-weight:bold;
+
+    margin-bottom:15px;
+
+    font-size:18px;
+
+}
