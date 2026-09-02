@@ -1,0 +1,113 @@
+<?php
+// ============================================================
+// LOGIN MMA SYSTEMS
+// Valida credenciales con password_verify, regenera la sesión
+// y aplica rate-limiting simple contra fuerza bruta.
+// ============================================================
+session_start();
+
+// Importar la conexión a la base de datos
+require_once 'config/conexion.php';
+
+// Inicializar variables de respuesta para la interfaz
+$response = ['status' => 'error', 'message' => ''];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    // --- Rate limiting (5 intentos fallidos = 30 segundos de espera) ---
+    $maxIntentos = 5;
+    $tiempoBloqueo = 30; // segundos
+
+    if (isset($_SESSION['intentos_login']) && $_SESSION['intentos_login'] >= $maxIntentos) {
+        $espera = $tiempoBloqueo - (time() - ($_SESSION['ultimo_intento'] ?? time()));
+        if ($espera > 0) {
+            $response['message'] = "Demasiados intentos fallidos. Espere {$espera} segundos.";
+            echo json_encode($response);
+            exit;
+        }
+        $_SESSION['intentos_login'] = 0; // se libera el bloqueo
+    }
+
+    // Sanitizar y recibir los datos del formulario
+    $email = isset($_POST['email']) ? trim($_POST['email']) : '';
+    $password = isset($_POST['password']) ? $_POST['password'] : '';
+
+    // Validar campos vacíos y formato del correo
+    if (empty($email) || empty($password)) {
+        $response['message'] = "Complete todos los campos.";
+        echo json_encode($response);
+        exit;
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $response['message'] = "Correo electrónico no válido.";
+        echo json_encode($response);
+        exit;
+    }
+
+    try {
+        // Consultar el usuario en la tabla USUARIO
+        $query = "SELECT ID_Usuario, Email, Contraseña, Rol FROM USUARIO WHERE Email = :email LIMIT 1";
+        $stmt = $conexion->prepare($query);
+        $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+        $stmt->execute();
+
+        $usuario = $stmt->fetch();
+
+        // Mensaje genérico (evita enumerar usuarios válidos)
+        $mensajeError = "Credenciales incorrectas.";
+
+        if (!$usuario || !password_verify($password, $usuario['Contraseña'])) {
+            $_SESSION['intentos_login'] = ($_SESSION['intentos_login'] ?? 0) + 1;
+            $_SESSION['ultimo_intento'] = time();
+            $response['message'] = $mensajeError;
+            echo json_encode($response);
+            exit;
+        }
+
+        // Credenciales correctas: regenerar el ID de sesión (anti session fixation)
+        session_regenerate_id(true);
+        unset($_SESSION['intentos_login'], $_SESSION['ultimo_intento']);
+
+        $_SESSION['usuario_id'] = $usuario['ID_Usuario'];
+        $_SESSION['usuario_email'] = $usuario['Email'];
+        $_SESSION['usuario_rol'] = $usuario['Rol'];
+
+        // Nombre mostrado según el rol
+        $nombre = "Usuario";
+
+        if ($usuario['Rol'] === 'Alumno') {
+            $queryAlumno = "SELECT Nombre, Apellido FROM ALUMNO WHERE ID_Usuario = :id_usuario LIMIT 1";
+            $stmtAlumno = $conexion->prepare($queryAlumno);
+            $stmtAlumno->bindParam(':id_usuario', $usuario['ID_Usuario'], PDO::PARAM_INT);
+            $stmtAlumno->execute();
+            $alumno = $stmtAlumno->fetch();
+            if ($alumno) {
+                $nombre = $alumno['Nombre'] . ' ' . $alumno['Apellido'];
+            }
+        } elseif ($usuario['Rol'] === 'Tutor') {
+            $queryTutor = "SELECT Nombre, Apellido FROM TUTOR WHERE ID_Usuario = :id_usuario LIMIT 1";
+            $stmtTutor = $conexion->prepare($queryTutor);
+            $stmtTutor->bindParam(':id_usuario', $usuario['ID_Usuario'], PDO::PARAM_INT);
+            $stmtTutor->execute();
+            $tutor = $stmtTutor->fetch();
+            if ($tutor) {
+                $nombre = $tutor['Nombre'] . ' ' . $tutor['Apellido'];
+            }
+        } elseif ($usuario['Rol'] === 'Administrador') {
+            $nombre = "Administrador";
+        }
+
+        $_SESSION['usuario_nombre'] = $nombre;
+
+        $response['status'] = 'success';
+        $response['message'] = "Inicio de sesión correcto.";
+
+    } catch (PDOException $e) {
+        error_log("Error en login.php: " . $e->getMessage());
+        $response['message'] = "Hubo un problema en el servidor. Intente más tarde.";
+    }
+
+    echo json_encode($response);
+    exit;
+}
