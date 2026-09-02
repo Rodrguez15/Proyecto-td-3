@@ -1,0 +1,137 @@
+// ============================================================
+// GESTIÓN DE GRUPOS DE ENTRENAMIENTO - Escuela de Combate VILAMIR
+// Persistencia en servidor vía api/grupos.php (GET/POST JSON).
+// Renderizado seguro: createElement + textContent (sin XSS).
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", function () {
+    const btnGuardar = document.getElementById("btnGuardarGrupo");
+    const contenedor = document.getElementById("contenedorGrupos");
+    const mensajeEl = document.getElementById("mensajeGrupo");
+
+    function mostrarMensaje(texto, esError) {
+        if (!mensajeEl) return;
+        mensajeEl.style.color = esError ? "red" : "green";
+        mensajeEl.textContent = texto;
+    }
+
+    function crearTarjeta(grupo) {
+        const div = document.createElement("div");
+        div.className = "member";
+        div.style.width = "280px";
+        div.style.minHeight = "200px";
+        div.style.textAlign = "center";
+        div.style.padding = "25px";
+        div.style.display = "flex";
+        div.style.flexDirection = "column";
+        div.style.justifyContent = "space-between";
+
+        const cabecera = document.createElement("div");
+
+        const h2 = document.createElement("h2");
+        h2.style.fontSize = "22px";
+        h2.style.color = "#ffffff";
+        h2.style.marginBottom = "10px";
+        h2.style.textAlign = "center";
+        h2.textContent = grupo.Nombre || "";
+
+        const span = document.createElement("span");
+        span.className = "role";
+        span.style.background = "#111111";
+        span.style.padding = "4px 12px";
+        span.style.borderRadius = "6px";
+        span.style.fontSize = "13px";
+        span.style.border = "1px solid #b30000";
+        span.style.display = "inline-block";
+        span.style.marginBottom = "15px";
+        span.textContent = grupo.Nivel || "";
+
+        const p = document.createElement("p");
+        p.style.fontSize = "14px";
+        p.style.color = "#aaa";
+        p.style.lineHeight = "1.6";
+        p.style.textAlign = "justify";
+        p.textContent = grupo.Descripcion || "";
+
+        cabecera.appendChild(h2);
+        cabecera.appendChild(span);
+        div.appendChild(cabecera);
+        div.appendChild(p);
+        return div;
+    }
+
+    function renderGrupos(grupos) {
+        contenedor.innerHTML = "";
+
+        if (!grupos || grupos.length === 0) {
+            const div = document.createElement("div");
+            div.style.gridColumn = "1 / -1";
+            div.style.textAlign = "center";
+            div.style.padding = "40px";
+            div.style.color = "#777";
+            div.style.width = "100%";
+            const p = document.createElement("p");
+            p.style.fontSize = "16px";
+            p.style.fontWeight = "bold";
+            p.textContent = "No hay grupos configurados todavía para la academia.";
+            div.appendChild(p);
+            contenedor.appendChild(div);
+            return;
+        }
+
+        grupos.forEach(function (grupo) {
+            contenedor.appendChild(crearTarjeta(grupo));
+        });
+    }
+
+    function cargarGrupos() {
+        fetch("api/grupos.php")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === "success") {
+                    renderGrupos(data.grupos);
+                } else {
+                    mostrarMensaje(data.message || "Error al cargar grupos.", true);
+                }
+            })
+            .catch(function () {
+                mostrarMensaje("Error en la comunicación con el servidor.", true);
+            });
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener("click", function () {
+            const nombre = document.getElementById("nombreGrupo").value.trim();
+            const nivel = document.getElementById("nivelGrupo").value;
+            const descripcion = document.getElementById("descripcionGrupo").value.trim();
+
+            if (!nombre || !descripcion) {
+                mostrarMensaje("Por favor, completa el nombre y la descripción del grupo.", true);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("nombre", nombre);
+            formData.append("nivel", nivel);
+            formData.append("descripcion", descripcion);
+
+            fetch("api/grupos.php", { method: "POST", body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === "success") {
+                        mostrarMensaje(data.message, false);
+                        document.getElementById("nombreGrupo").value = "";
+                        document.getElementById("descripcionGrupo").value = "";
+                        cargarGrupos();
+                    } else {
+                        mostrarMensaje(data.message, true);
+                    }
+                })
+                .catch(function () {
+                    mostrarMensaje("Error en la comunicación con el servidor.", true);
+                });
+        });
+    }
+
+    cargarGrupos();
+});
