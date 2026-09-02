@@ -1,0 +1,68 @@
+// ===============================
+// REGISTRO DE USUARIOS
+// MMA Systems
+// ===============================
+document.getElementById("registerForm").addEventListener("submit", function(e) {
+    // Evitar que la página recargue el formulario de forma convencional
+    e.preventDefault();
+
+    const nombre = document.getElementById("nombre").value.trim();
+    const apellido = document.getElementById("apellido").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+    const mensaje = document.getElementById("mensaje");
+
+    mensaje.textContent = "";
+
+    if (nombre === "" || apellido === "" || email === "" || password === "" || confirmPassword === "") {
+        mensaje.style.color = "red";
+        mensaje.textContent = "Debe completar todos los campos.";
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        mensaje.style.color = "red";
+        mensaje.textContent = "Las contraseñas no coinciden.";
+        return;
+    }
+
+    if (password.length < 8) {
+        mensaje.style.color = "red";
+        mensaje.textContent = "La contraseña debe tener al menos 8 caracteres.";
+        return;
+    }
+
+    // Estructurar los parámetros correspondientes para la solicitud POST
+    const formData = new FormData();
+    formData.append('nombre', nombre);
+    formData.append('apellido', apellido);
+    formData.append('email', email);
+    formData.append('password', password);
+    formData.append('confirmPassword', confirmPassword);
+
+    // Enviar los datos del nuevo alumno de forma asíncrona hacia registrar.php
+    fetch('registrar.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            mensaje.style.color = "green";
+            mensaje.textContent = data.message;
+
+            // Redirigir a la pantalla de login tras 2 segundos
+            setTimeout(function() {
+                window.location.href = "login.html";
+            }, 2000);
+        } else {
+            mensaje.style.color = "red";
+            mensaje.textContent = data.message;
+        }
+    })
+    .catch(error => {
+        mensaje.style.color = "red";
+        mensaje.textContent = "Error en la comunicación con el servidor.";
+    });
+});
