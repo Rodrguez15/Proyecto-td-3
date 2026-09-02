@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Seminarios - MMA Systems</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="about-page">
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+        <nav>
+            <a href="index.php">Inicio</a>
+            <a href="alumnos.html">Alumnos</a>
+            <a href="tutores.html">Tutores</a>
+            <a href="clases.html">Clases</a>
+            <a href="grupos.html">Grupos</a>
+            <a href="seminarios.html">Seminarios</a>
+            <a href="about.html">About Us</a>
+        </nav>
+    </header>
+
+    <main class="about-container">
+        <h1>Próximos Seminarios</h1>
+        
+        <section class="project-info" style="margin-bottom: 40px; background: rgba(179, 0, 0, 0.1); border: 1px dashed #b30000;">
+            <h2>Organizar Nuevo Seminario</h2>
+            <div style="display: flex; flex-direction: column; gap: 15px; max-width: 500px; margin: auto;">
+                <input type="text" id="tituloSeminario" placeholder="Título del Seminario">
+                <input type="text" id="ponente" placeholder="Instructor / Ponente">
+                <input type="date" id="fechaSeminario">
+                <button id="btnGuardarSeminario" style="background: #d10000;">Crear Evento</button>
+            </div>
+        </section>
+
+        <div id="listaSeminarios" class="team">
+            <!-- Tarjetas de seminarios -->
+        </div>
+    </main>
+
+    <footer>© 2026 MMA Systems</footer>
+    <script src="js/seminarios.js"></script>
+</body>
+</html>
