@@ -1,0 +1,27 @@
+<?php
+// ============================================================
+// Configuración de conexión a la base de datos
+// Las credenciales pueden sobrescribirse con variables de
+// entorno (DB_HOST, DB_NAME, DB_USER, DB_PASS) sin tocar código.
+// ============================================================
+$host = getenv('DB_HOST') ?: "localhost";
+$db_name = getenv('DB_NAME') ?: "mma_systems";
+$username = getenv('DB_USER') ?: "root";
+$password = getenv('DB_PASS') ?: "";
+
+try {
+    $conexion = new PDO(
+        "mysql:host=$host;dbname=$db_name;charset=utf8mb4",
+        $username,
+        $password,
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]
+    );
+} catch (PDOException $e) {
+    // Registrar el detalle en el log del servidor
+    error_log("Error de conexión a la base de datos: " . $e->getMessage());
+    die("Error crítico de conexión. Verifique la configuración de la base de datos.");
+}
