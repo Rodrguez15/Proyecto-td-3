@@ -1,0 +1,56 @@
+<?php
+// Protección server-side: redirige a login.html si no hay sesión
+require_once 'config/autenticacion.php';
+$titulo = 'Gestión de Tutores';
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo htmlspecialchars($titulo); ?> - MMA Systems</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+        <nav>
+            <a href="index.php">Inicio</a>
+            <a href="alumnos.php">Alumnos</a>
+            <a href="tutores.php">Tutores</a>
+            <a href="clases.php">Clases</a>
+            <a href="grupos.php">Grupos</a>
+            <a href="seminarios.php">Seminarios</a>
+            <a href="about.html">About Us</a>
+        </nav>
+    </header>
+
+    <main class="about-container">
+        <h1><?php echo htmlspecialchars($titulo); ?></h1>
+
+        <!-- Formulario para agregar tutores -->
+        <section class="project-info" style="margin-bottom: 30px;">
+            <h2>Registrar Nuevo Tutor</h2>
+            <div style="display: grid; gap: 10px; grid-template-columns: 1fr 1fr;">
+                <input type="text" id="nombreTutor" placeholder="Nombre">
+                <input type="text" id="apellidoTutor" placeholder="Apellido">
+                <input type="text" id="especialidadTutor" placeholder="Especialidad (ej. Jiu-Jitsu, Muay Thai)" style="grid-column: span 2;">
+                <input type="email" id="emailTutor" placeholder="Correo Electrónico" style="grid-column: span 2;">
+                <button id="btnGuardarTutor">Guardar Tutor</button>
+            </div>
+            <p id="mensajeTutor" style="text-align: center; font-weight: bold; margin-top: 12px;"></p>
+        </section>
+
+        <!-- Listado de tutores -->
+        <section class="project-info">
+            <h2>Cuerpo Docente</h2>
+            <div id="listaTutores">
+                <p>Cargando tutores...</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>© 2026 MMA Systems</footer>
+    <script src="js/tutores.js"></script>
+</body>
+</html>
