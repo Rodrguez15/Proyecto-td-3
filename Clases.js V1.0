@@ -1,0 +1,129 @@
+// ============================================================
+// GESTIÓN DE HORARIOS Y CLASES - Escuela de Combate VILAMIR
+// Persistencia en servidor vía api/clases.php (GET/POST JSON).
+// Renderizado seguro: createElement + textContent (sin XSS).
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", function () {
+    const btnGuardar = document.getElementById("btnGuardarClase");
+    const contenedor = document.getElementById("listaClases");
+    const mensajeEl = document.getElementById("mensajeClase");
+
+    function mostrarMensaje(texto, esError) {
+        if (!mensajeEl) return;
+        mensajeEl.style.color = esError ? "red" : "green";
+        mensajeEl.textContent = texto;
+    }
+
+    function crearTarjeta(clase) {
+        const div = document.createElement("div");
+        div.className = "member";
+        div.style.width = "100%";
+        div.style.minHeight = "180px";
+        div.style.textAlign = "left";
+        div.style.padding = "25px";
+
+        const h2 = document.createElement("h2");
+        h2.style.color = "#ffffff";
+        h2.style.fontSize = "22px";
+        h2.style.textAlign = "left";
+        h2.style.marginBottom = "5px";
+        h2.textContent = clase.Nombre || "";
+
+        const span = document.createElement("span");
+        span.className = "role";
+        span.style.display = "block";
+        span.style.marginBottom = "12px";
+        span.style.fontSize = "16px";
+        span.textContent = clase.Horario || "";
+
+        const p = document.createElement("p");
+        p.style.color = "#cfcfcf";
+        p.style.fontSize = "14px";
+        p.style.lineHeight = "1.6";
+        const strong = document.createElement("strong");
+        strong.textContent = "Días: ";
+        p.appendChild(strong);
+        p.appendChild(document.createTextNode(clase.Dias || ""));
+
+        div.appendChild(h2);
+        div.appendChild(span);
+        div.appendChild(p);
+        return div;
+    }
+
+    function renderClases(clases) {
+        contenedor.innerHTML = "";
+
+        if (!clases || clases.length === 0) {
+            const div = document.createElement("div");
+            div.style.gridColumn = "1 / -1";
+            div.style.textAlign = "center";
+            div.style.padding = "40px";
+            div.style.color = "#777";
+            const p = document.createElement("p");
+            p.style.fontSize = "16px";
+            p.style.fontWeight = "bold";
+            p.textContent = "No hay disciplinas o clases publicadas en la grilla actual.";
+            div.appendChild(p);
+            contenedor.appendChild(div);
+            return;
+        }
+
+        clases.forEach(function (clase) {
+            contenedor.appendChild(crearTarjeta(clase));
+        });
+    }
+
+    function cargarClases() {
+        fetch("api/clases.php")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === "success") {
+                    renderClases(data.clases);
+                } else {
+                    mostrarMensaje(data.message || "Error al cargar clases.", true);
+                }
+            })
+            .catch(function () {
+                mostrarMensaje("Error en la comunicación con el servidor.", true);
+            });
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener("click", function () {
+            const nombre = document.getElementById("nombreClase").value.trim();
+            const horario = document.getElementById("horarioClase").value.trim();
+            const dias = document.getElementById("diasClase").value.trim();
+
+            if (!nombre || !horario || !dias) {
+                mostrarMensaje("Por favor, completa todos los campos para publicar la clase.", true);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("nombre", nombre);
+            formData.append("horario", horario);
+            formData.append("dias", dias);
+
+            fetch("api/clases.php", { method: "POST", body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === "success") {
+                        mostrarMensaje(data.message, false);
+                        document.getElementById("nombreClase").value = "";
+                        document.getElementById("horarioClase").value = "";
+                        document.getElementById("diasClase").value = "";
+                        cargarClases();
+                    } else {
+                        mostrarMensaje(data.message, true);
+                    }
+                })
+                .catch(function () {
+                    mostrarMensaje("Error en la comunicación con el servidor.", true);
+                });
+        });
+    }
+
+    cargarClases();
+});
