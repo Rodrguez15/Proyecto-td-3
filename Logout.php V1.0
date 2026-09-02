@@ -1,0 +1,28 @@
+<?php
+// 1. Inicializar el entorno de sesiones para identificar la sesión activa
+session_start();
+
+// 2. Desvincular todas las variables guardadas en la superglobal $_SESSION
+$_SESSION = array();
+
+// 3. Destruir la cookie de sesión en el navegador si existe
+if (ini_get("session.use_cookies")) {
+    $params = session_get_cookie_params();
+    setcookie(
+        session_name(), 
+        '', 
+        time() - 42000,
+        $params["path"], 
+        $params["domain"],
+        $params["secure"], 
+        $params["httponly"]
+    );
+}
+
+// 4. Destruir físicamente el archivo de sesión almacenado en el servidor
+session_destroy();
+
+// 5. Redirigir de manera inmediata al usuario a la pantalla pública de inicio de sesión
+header("Location: login.html");
+exit;
+?>
