@@ -1,0 +1,151 @@
+// ============================================================
+// GESTIÓN DE SEMINARIOS - Escuela de Combate VILAMIR
+// Persistencia en servidor vía api/seminarios.php (GET/POST JSON).
+// Renderizado seguro: createElement + textContent (sin XSS).
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", function () {
+    const btnGuardar = document.getElementById("btnGuardarSeminario");
+    const contenedor = document.getElementById("listaSeminarios");
+    const mensajeEl = document.getElementById("mensajeSeminario");
+
+    function mostrarMensaje(texto, esError) {
+        if (!mensajeEl) return;
+        mensajeEl.style.color = esError ? "red" : "green";
+        mensajeEl.textContent = texto;
+    }
+
+    function formatearFecha(fecha) {
+        if (!fecha) return "Por confirmar";
+        const partes = String(fecha).split("-");
+        if (partes.length === 3) {
+            return partes[2] + "/" + partes[1] + "/" + partes[0];
+        }
+        return fecha;
+    }
+
+    function crearTarjeta(sem) {
+        const div = document.createElement("div");
+        div.className = "member";
+        div.style.width = "290px";
+        div.style.minHeight = "220px";
+        div.style.padding = "25px";
+        div.style.display = "flex";
+        div.style.flexDirection = "column";
+        div.style.justifyContent = "space-between";
+
+        const cabecera = document.createElement("div");
+
+        const h2 = document.createElement("h2");
+        h2.style.color = "#d10000";
+        h2.style.fontSize = "22px";
+        h2.style.marginBottom = "5px";
+        h2.style.textAlign = "center";
+        h2.textContent = sem.Titulo || "";
+
+        const span = document.createElement("span");
+        span.className = "role";
+        span.style.display = "block";
+        span.style.textAlign = "center";
+        span.style.marginBottom = "15px";
+        span.style.fontSize = "15px";
+        span.style.color = "#ffffff";
+        span.textContent = "Instructor: " + (sem.Ponente || "");
+
+        const pie = document.createElement("div");
+        pie.style.background = "rgba(179, 0, 0, 0.15)";
+        pie.style.border = "1px solid #b30000";
+        pie.style.padding = "8px";
+        pie.style.borderRadius = "6px";
+
+        const pFecha = document.createElement("p");
+        pFecha.style.textAlign = "center";
+        pFecha.style.fontWeight = "bold";
+        pFecha.style.color = "#ffffff";
+        pFecha.style.fontSize = "14px";
+        pFecha.textContent = "Fecha: " + formatearFecha(sem.Fecha);
+
+        cabecera.appendChild(h2);
+        cabecera.appendChild(span);
+        pie.appendChild(pFecha);
+        div.appendChild(cabecera);
+        div.appendChild(pie);
+        return div;
+    }
+
+    function renderSeminarios(seminarios) {
+        contenedor.innerHTML = "";
+
+        if (!seminarios || seminarios.length === 0) {
+            const div = document.createElement("div");
+            div.style.gridColumn = "1 / -1";
+            div.style.textAlign = "center";
+            div.style.padding = "40px";
+            div.style.color = "#777";
+            div.style.width = "100%";
+            const p = document.createElement("p");
+            p.style.fontSize = "16px";
+            p.style.fontWeight = "bold";
+            p.textContent = "No hay seminarios ni eventos especiales programados por el momento.";
+            div.appendChild(p);
+            contenedor.appendChild(div);
+            return;
+        }
+
+        seminarios.forEach(function (sem) {
+            contenedor.appendChild(crearTarjeta(sem));
+        });
+    }
+
+    function cargarSeminarios() {
+        fetch("api/seminarios.php")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === "success") {
+                    renderSeminarios(data.seminarios);
+                } else {
+                    mostrarMensaje(data.message || "Error al cargar seminarios.", true);
+                }
+            })
+            .catch(function () {
+                mostrarMensaje("Error en la comunicación con el servidor.", true);
+            });
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener("click", function () {
+            const titulo = document.getElementById("tituloSeminario").value.trim();
+            const ponente = document.getElementById("ponente").value.trim();
+            const fecha = document.getElementById("fechaSeminario").value;
+
+            if (!titulo || !ponente || !fecha) {
+                mostrarMensaje("Por favor, completa todos los campos para registrar el seminario.", true);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("titulo", titulo);
+            formData.append("ponente", ponente);
+            formData.append("fecha", fecha);
+
+            fetch("api/seminarios.php", { method: "POST", body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === "success") {
+                        mostrarMensaje(data.message, false);
+                        document.getElementById("tituloSeminario").value = "";
+                        document.getElementById("ponente").value = "";
+                        document.getElementById("fechaSeminario").value = "";
+                        cargarSeminarios();
+                    } else {
+                        mostrarMensaje(data.message, true);
+                    }
+                })
+                .catch(function () {
+                    mostrarMensaje("Error en la comunicación con el servidor.", true);
+                });
+        });
+    }
+
+    cargarSeminarios();
+});
