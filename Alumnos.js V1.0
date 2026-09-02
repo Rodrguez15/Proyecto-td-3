@@ -1,0 +1,107 @@
+// ============================================================
+// GESTIÓN DE ALUMNOS - MMA Systems
+// Persistencia en servidor vía api/alumnos.php (GET/POST JSON).
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", function () {
+    const btnGuardar = document.getElementById("btnGuardarAlumno");
+    const listaDiv = document.getElementById("listaAlumnos");
+    const mensajeEl = document.getElementById("mensajeAlumno");
+
+    function mostrarMensaje(texto, esError) {
+        if (!mensajeEl) return;
+        mensajeEl.style.color = esError ? "red" : "green";
+        mensajeEl.textContent = texto;
+    }
+
+    function crearFila(alumno) {
+        const li = document.createElement("li");
+        li.style.background = "#241212";
+        li.style.margin = "10px 0";
+        li.style.padding = "15px";
+        li.style.borderRadius = "8px";
+        li.style.borderLeft = "4px solid #b30000";
+
+        const strong = document.createElement("strong");
+        strong.textContent = (alumno.Nombre || "") + " " + (alumno.Apellido || "");
+
+        const span = document.createElement("span");
+        span.textContent = alumno.Email ? " - " + alumno.Email : "";
+        span.style.color = "#aaa";
+
+        li.appendChild(strong);
+        li.appendChild(span);
+        return li;
+    }
+
+    function renderAlumnos(alumnos) {
+        listaDiv.innerHTML = "";
+
+        if (!alumnos || alumnos.length === 0) {
+            const p = document.createElement("p");
+            p.textContent = "No hay alumnos registrados aún.";
+            listaDiv.appendChild(p);
+            return;
+        }
+
+        const ul = document.createElement("ul");
+        ul.style.listStyle = "none";
+        ul.style.padding = "0";
+        alumnos.forEach(function (alumno) {
+            ul.appendChild(crearFila(alumno));
+        });
+        listaDiv.appendChild(ul);
+    }
+
+    function cargarAlumnos() {
+        fetch("api/alumnos.php")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === "success") {
+                    renderAlumnos(data.alumnos);
+                } else {
+                    mostrarMensaje(data.message || "Error al cargar alumnos.", true);
+                }
+            })
+            .catch(function () {
+                mostrarMensaje("Error en la comunicación con el servidor.", true);
+            });
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener("click", function () {
+            const nombre = document.getElementById("nombreAlumno").value.trim();
+            const apellido = document.getElementById("apellidoAlumno").value.trim();
+            const email = document.getElementById("emailAlumno").value.trim();
+
+            if (!nombre || !apellido || !email) {
+                mostrarMensaje("Por favor, completa todos los campos.", true);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("nombre", nombre);
+            formData.append("apellido", apellido);
+            formData.append("email", email);
+
+            fetch("api/alumnos.php", { method: "POST", body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === "success") {
+                        mostrarMensaje(data.message, false);
+                        document.getElementById("nombreAlumno").value = "";
+                        document.getElementById("apellidoAlumno").value = "";
+                        document.getElementById("emailAlumno").value = "";
+                        cargarAlumnos();
+                    } else {
+                        mostrarMensaje(data.message, true);
+                    }
+                })
+                .catch(function () {
+                    mostrarMensaje("Error en la comunicación con el servidor.", true);
+                });
+        });
+    }
+
+    cargarAlumnos();
+});
