@@ -1,0 +1,138 @@
+// ============================================================
+// GESTIÓN DE TUTORES - Escuela de Combate VILAMIR
+// Persistencia en servidor vía api/tutores.php (GET/POST JSON).
+// Renderizado seguro: createElement + textContent (sin XSS).
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", function () {
+    const btnGuardar = document.getElementById("btnGuardarTutor");
+    const listaDiv = document.getElementById("listaTutores");
+    const mensajeEl = document.getElementById("mensajeTutor");
+
+    function mostrarMensaje(texto, esError) {
+        if (!mensajeEl) return;
+        mensajeEl.style.color = esError ? "red" : "green";
+        mensajeEl.textContent = texto;
+    }
+
+    function crearTarjeta(tutor) {
+        const div = document.createElement("div");
+        div.style.background = "#1e1e1e";
+        div.style.padding = "20px";
+        div.style.borderRadius = "12px";
+        div.style.borderTop = "4px solid #b30000";
+        div.style.boxShadow = "0 4px 10px rgba(0,0,0,0.2)";
+        div.style.textAlign = "left";
+
+        const h3 = document.createElement("h3");
+        h3.style.color = "#ffffff";
+        h3.style.margin = "0 0 5px 0";
+        h3.style.fontSize = "20px";
+        h3.style.textAlign = "left";
+        h3.textContent = (tutor.Nombre || "") + " " + (tutor.Apellido || "");
+
+        const span = document.createElement("span");
+        span.className = "role";
+        span.style.fontSize = "14px";
+        span.style.display = "block";
+        span.style.marginBottom = "12px";
+        span.style.fontWeight = "bold";
+        span.textContent = tutor.Especialidad || "";
+
+        const p = document.createElement("p");
+        p.style.color = "#aaa";
+        p.style.fontSize = "13px";
+        p.style.fontFamily = "monospace";
+        p.textContent = tutor.Email || "";
+
+        div.appendChild(h3);
+        div.appendChild(span);
+        div.appendChild(p);
+        return div;
+    }
+
+    function renderTutores(tutores) {
+        listaDiv.innerHTML = "";
+
+        if (!tutores || tutores.length === 0) {
+            const div = document.createElement("div");
+            div.style.textAlign = "center";
+            div.style.padding = "40px";
+            div.style.color = "#777";
+            div.style.width = "100%";
+            const p = document.createElement("p");
+            p.style.fontSize = "16px";
+            p.style.fontWeight = "bold";
+            p.textContent = "No hay tutores registrados en el cuerpo docente actual.";
+            div.appendChild(p);
+            listaDiv.appendChild(div);
+            return;
+        }
+
+        const contenedor = document.createElement("div");
+        contenedor.style.display = "grid";
+        contenedor.style.gridTemplateColumns = "repeat(auto-fill, minmax(260px, 1fr))";
+        contenedor.style.gap = "20px";
+        contenedor.style.marginTop = "15px";
+
+        tutores.forEach(function (tutor) {
+            contenedor.appendChild(crearTarjeta(tutor));
+        });
+        listaDiv.appendChild(contenedor);
+    }
+
+    function cargarTutores() {
+        fetch("api/tutores.php")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === "success") {
+                    renderTutores(data.tutores);
+                } else {
+                    mostrarMensaje(data.message || "Error al cargar tutores.", true);
+                }
+            })
+            .catch(function () {
+                mostrarMensaje("Error en la comunicación con el servidor.", true);
+            });
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener("click", function () {
+            const nombre = document.getElementById("nombreTutor").value.trim();
+            const apellido = document.getElementById("apellidoTutor").value.trim();
+            const especialidad = document.getElementById("especialidadTutor").value.trim();
+            const email = document.getElementById("emailTutor").value.trim();
+
+            if (!nombre || !apellido || !especialidad || !email) {
+                mostrarMensaje("Completa todos los campos para registrar al tutor.", true);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("nombre", nombre);
+            formData.append("apellido", apellido);
+            formData.append("especialidad", especialidad);
+            formData.append("email", email);
+
+            fetch("api/tutores.php", { method: "POST", body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === "success") {
+                        mostrarMensaje(data.message, false);
+                        document.getElementById("nombreTutor").value = "";
+                        document.getElementById("apellidoTutor").value = "";
+                        document.getElementById("especialidadTutor").value = "";
+                        document.getElementById("emailTutor").value = "";
+                        cargarTutores();
+                    } else {
+                        mostrarMensaje(data.message, true);
+                    }
+                })
+                .catch(function () {
+                    mostrarMensaje("Error en la comunicación con el servidor.", true);
+                });
+        });
+    }
+
+    cargarTutores();
+});
