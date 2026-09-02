@@ -1,0 +1,75 @@
+<?php
+// Protección server-side: redirige a login.html si no hay sesión
+require_once 'config/autenticacion.php';
+$titulo = 'Horarios y Clases Activas';
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Clases - MMA Systems</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="about-page">
+
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+        <nav>
+            <a href="index.php">Inicio</a>
+            <a href="alumnos.php">Alumnos</a>
+            <a href="tutores.php">Tutores</a>
+            <a href="clases.php">Clases</a>
+            <a href="grupos.php">Grupos</a>
+            <a href="seminarios.php">Seminarios</a>
+            <a href="about.html">About Us</a>
+        </nav>
+    </header>
+
+    <main class="about-container">
+        <h1><?php echo htmlspecialchars($titulo); ?></h1>
+
+        <!-- Formulario Administrativo para Añadir Disciplinas -->
+        <section class="project-info" style="margin-bottom: 35px; border-bottom: 4px solid #b30000;">
+            <h2>Publicar Nueva Clase</h2>
+            <div style="display: grid; gap: 15px; grid-template-columns: 1fr 1fr; margin-top: 20px;">
+                <div>
+                    <label style="color: #cfcfcf; text-align: left; margin-top: 0;">Disciplina / Arte Marcial</label>
+                    <input type="text" id="nombreClase" placeholder="Ej: MMA, Kickboxing, Jiu-Jitsu">
+                </div>
+                <div>
+                    <label style="color: #cfcfcf; text-align: left; margin-top: 0;">Rango Horario</label>
+                    <input type="text" id="horarioClase" placeholder="Ej: 19:00 - 21:00">
+                </div>
+                <div style="grid-column: span 2;">
+                    <label style="color: #cfcfcf; text-align: left; margin-top: 0;">Días de Entrenamiento</label>
+                    <input type="text" id="diasClase" placeholder="Ej: Lunes, Miércoles y Viernes">
+                </div>
+                <div style="grid-column: span 2; margin-top: 10px;">
+                    <button id="btnGuardarClase" style="margin-top: 0;">Publicar en la Grilla</button>
+                </div>
+            </div>
+            <p id="mensajeClase" style="text-align: center; font-weight: bold; margin-top: 12px;"></p>
+        </section>
+
+        <!-- Grilla de Visualización Dinámica de Clases -->
+        <section class="project-info">
+            <h2>Grilla de Horarios Vigentes</h2>
+            <p style="text-align: center; margin-bottom: 30px; color: #aaa;">
+                Consulte las disciplinas disponibles y sus respectivos días de dictado en la academia.
+            </p>
+
+            <!-- Contenedor adaptativo optimizado para CSS Grid -->
+            <div id="listaClases" class="team" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; margin-bottom: 0;">
+                <!-- Las tarjetas de clases se inyectarán de forma dinámica mediante JavaScript -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        © 2026 MMA Systems
+    </footer>
+
+    <script src="js/clases.js"></script>
+</body>
+</html>
