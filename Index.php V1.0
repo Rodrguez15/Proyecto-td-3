@@ -1,0 +1,85 @@
+<?php
+// 1. Incluir el control de acceso global del servidor
+require_once 'config/autenticacion.php';
+
+// En este punto, la sesión ya está iniciada por autenticacion.php
+// Recuperamos el nombre del usuario guardado en la sesión
+$nombreUsuario = isset($_SESSION['usuario_nombre']) ? $_SESSION['usuario_nombre'] : 'Usuario';
+?>
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMA Systems - Inicio</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <!-- Barra de navegación con accesos protegidos -->
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+        <nav>
+            <a href="index.php">Inicio</a>
+            <a href="alumnos.php">Alumnos</a>
+            <a href="tutores.php">Tutores</a>
+            <a href="clases.php">Clases</a>
+            <a href="grupos.php">Grupos</a>
+            <a href="seminarios.php">Seminarios</a>
+            <a href="about.html">About Us</a>
+        </nav>
+    </header>
+
+    <main class="container" style="flex-direction: column; gap: 20px; min-height: 80vh;">
+
+        <!-- Tarjeta de Bienvenida y Estado de Sesión -->
+        <section class="login-card" style="width: 800px; margin-top: 40px;">
+            <!-- Renderizado dinámico del saludo desde el servidor PHP -->
+            <h1 id="saludo">¡Bienvenido, <?php echo htmlspecialchars($nombreUsuario); ?>!</h1>
+            <p>Has iniciado sesión correctamente en el sistema de gestión de Vilamir Gym.</p>
+            
+            <div style="text-align: center;">
+                <!-- Enlace directo al script que destruirá la sesión en el servidor -->
+                <a href="logout.php" class="register-link" style="display: inline-block; background: #b30000; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; transition: .3s;">
+                    Cerrar sesión
+                </a>
+            </div>
+        </section>
+
+        <!-- Contenedor del Inicio y Panel de Opciones -->
+        <div class="contenedor-inicio" style="margin-top: 0; width: 800px;">
+            <p>Desde aquí podrás administrar las clases, horarios, alumnos y demás módulos operativos.</p>
+
+            <div class="panel">
+                <div class="opcion" onclick="window.location.href='clases.php'" style="cursor: pointer;">
+                    <h2>Clases</h2>
+                    <p>Gestionar información de las clases</p>
+                </div>
+
+                <div class="opcion" onclick="window.location.href='seminarios.php'" style="cursor: pointer;">
+                    <h2>Eventos</h2>
+                    <p>Administrar próximos eventos y seminarios.</p>
+                </div>
+
+                <div class="opcion" onclick="window.location.href='alumnos.php'" style="cursor: pointer;">
+                    <h2>Alumnos</h2>
+                    <p>Consultar rankings, asistencia y alumnos.</p>
+                </div>
+
+                <div class="opcion" onclick="window.location.href='about.html'" style="cursor: pointer;">
+                    <h2>Nosotros</h2>
+                    <p>Ver información del equipo de desarrollo.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer>
+        © 2026 MMA Systems
+    </footer>
+
+</body>
+</html>
