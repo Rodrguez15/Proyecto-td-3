@@ -1,0 +1,12 @@
+// ============================================================
+// INDEX - MMA SYSTEMS
+// Control del botón "Cerrar sesión" de index.html (versión legacy).
+// ============================================================
+document.addEventListener("DOMContentLoaded", function () {
+    const btnCerrar = document.getElementById("cerrarSesion");
+    if (btnCerrar) {
+        btnCerrar.addEventListener("click", function () {
+            window.location.href = "logout.php";
+        });
+    }
+});
