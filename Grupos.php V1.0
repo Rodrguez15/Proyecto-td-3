@@ -1,0 +1,80 @@
+<?php
+// Protección server-side: redirige a login.html si no hay sesión
+require_once 'config/autenticacion.php';
+$titulo = 'Organización de Grupos de Entrenamiento';
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Grupos - MMA Systems</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="about-page">
+
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+        <nav>
+            <a href="index.php">Inicio</a>
+            <a href="alumnos.php">Alumnos</a>
+            <a href="tutores.php">Tutores</a>
+            <a href="clases.php">Clases</a>
+            <a href="grupos.php">Grupos</a>
+            <a href="seminarios.php">Seminarios</a>
+            <a href="about.html">About Us</a>
+        </nav>
+    </header>
+
+    <main class="about-container">
+        <h1><?php echo htmlspecialchars($titulo); ?></h1>
+
+        <!-- Formulario para la Creación de Divisiones -->
+        <section class="project-info" style="margin-bottom: 35px; border-bottom: 4px solid #b30000;">
+            <h2>Crear Nuevo Grupo Operativo</h2>
+            <div style="display: grid; gap: 15px; grid-template-columns: 1fr 1fr; margin-top: 20px;">
+                <div>
+                    <label style="color: #cfcfcf; text-align: left; margin-top: 0;">Nombre del Grupo</label>
+                    <input type="text" id="nombreGrupo" placeholder="Ej: MMA Pro, Kickboxing Inicial">
+                </div>
+                <div>
+                    <label style="color: #cfcfcf; text-align: left; margin-top: 0;">Nivel de Clasificación</label>
+                    <select id="nivelGrupo" style="width: 100%; padding: 12px; border-radius: 6px; background: #111; color: white; border: 1px solid #ccc; font-family: Arial, sans-serif; font-size: 14px; transition: .3s;">
+                        <option value="Principiante">Principiante (Recreativo)</option>
+                        <option value="Intermedio">Intermedio (Técnico)</option>
+                        <option value="Avanzado">Avanzado (Sparring)</option>
+                        <option value="Competencia">Competencia (Vilamir Team)</option>
+                    </select>
+                </div>
+                <div style="grid-column: span 2;">
+                    <label style="color: #cfcfcf; text-align: left; margin-top: 0;">Descripción Breve y Enfoque</label>
+                    <input type="text" id="descripcionGrupo" placeholder="Ej: Enfocado en el desarrollo de técnicas básicas y acondicionamiento físico general.">
+                </div>
+                <div style="grid-column: span 2; margin-top: 10px;">
+                    <button id="btnGuardarGrupo" style="margin-top: 0;">Establecer Grupo</button>
+                </div>
+            </div>
+            <p id="mensajeGrupo" style="text-align: center; font-weight: bold; margin-top: 12px;"></p>
+        </section>
+
+        <!-- Bloque de Visualización del Esquema Académico -->
+        <section class="project-info">
+            <h2>Grupos Configurados Vigentes</h2>
+            <p style="text-align: center; margin-bottom: 30px; color: #aaa;">
+                Divisiones operativas actuales destinadas al control de cupos y asignación horaria en la academia.
+            </p>
+
+            <!-- Contenedor adaptativo alineado con el motor js/grupos.js -->
+            <div id="contenedorGrupos" class="team" style="margin-bottom: 0;">
+                <!-- Las tarjetas se estructurarán de forma automática aquí -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        © 2026 MMA Systems
+    </footer>
+
+    <script src="js/grupos.js"></script>
+</body>
+</html>
