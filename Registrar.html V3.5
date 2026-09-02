@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMA Systems - Registro de Usuario</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+        <nav>
+            <a href="login.html">Inicio</a>
+            <a href="about.html">About Us</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="login-card" style="margin-top: 40px;">
+            <h1>Crear Cuenta</h1>
+            <p>Regístrate para acceder al sistema de gestión.</p>
+
+            <form id="registerForm">
+                <label>Nombre</label>
+                <input type="text" id="nombre" placeholder="Introduce tu nombre" required>
+
+                <label>Apellido</label>
+                <input type="text" id="apellido" placeholder="Introduce tu apellido" required>
+
+                <label>Correo Electrónico</label>
+                <input type="email" id="email" placeholder="Introduce tu correo" required>
+
+                <label>Contraseña</label>
+                <input type="password" id="password" placeholder="Introduce tu contraseña" required>
+
+                <label>Confirmar Contraseña</label>
+                <input type="password" id="confirmPassword" placeholder="Repite tu contraseña" required>
+                
+                <button type="submit">Crear cuenta</button>
+            </form>
+
+            <p class="register-link">
+                ¿Ya tienes una cuenta?
+                <a href="login.html">Inicia sesión aquí</a>
+            </p>
+
+            <p id="mensaje" style="margin-top: 18px; text-align: center; font-weight: bold;"></p>
+        </section>
+    </main>
+
+    <footer>
+        © 2026 MMA Systems
+    </footer>
+
+    <!-- Vinculación al script de control asíncrono -->
+    <script src="js/registrar.js"></script>
+</body>
+
+</html>
