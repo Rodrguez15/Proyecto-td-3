@@ -1,0 +1,108 @@
+<?php
+// ============================================================
+// PORTAL DEL PROFESOR
+// Permite al docente elegir las disciplinas que enseña y
+// consultar sus clases y grupos relacionados.
+// ============================================================
+require_once dirname(__DIR__) . '/config/conexion.php';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+header('Content-Type: application/json; charset=utf-8');
+
+if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] ?? '') !== 'Profesor') {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Acceso exclusivo para profesores.']);
+    exit;
+}
+
+try {
+    $idUsuario = (int) $_SESSION['usuario_id'];
+
+    $stmt = $conexion->prepare(
+        'SELECT ID_Profesor, Nombre, Apellido, Especialidad
+         FROM PROFESOR
+         WHERE ID_Usuario = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$idUsuario]);
+    $profesor = $stmt->fetch();
+
+    if (!$profesor) {
+        http_response_code(404);
+        echo json_encode(['status' => 'error', 'message' => 'No existe un perfil de profesor asociado a esta cuenta.']);
+        exit;
+    }
+
+    $idProfesor = (int) $profesor['ID_Profesor'];
+    $accion = $_GET['accion'] ?? 'datos';
+
+    if ($accion === 'datos') {
+        $stmt = $conexion->prepare(
+            'SELECT d.ID_Disciplina, d.Nombre, d.Descripcion, d.Costo,
+                    CASE WHEN pd.ID_Profesor IS NULL THEN 0 ELSE 1 END AS Seleccionada
+             FROM DISCIPLINA d
+             LEFT JOIN PROFESOR_DISCIPLINA pd
+               ON pd.ID_Disciplina = d.ID_Disciplina
+              AND pd.ID_Profesor = ?
+             ORDER BY d.Nombre'
+        );
+        $stmt->execute([$idProfesor]);
+        $disciplinas = $stmt->fetchAll();
+
+        $stmt = $conexion->prepare(
+            'SELECT g.ID_Grupo, g.Nombre, g.Nivel, g.Descripcion,
+                    g.Cupo_maximo, d.Nombre AS Disciplina
+             FROM GRUPO g
+             LEFT JOIN DISCIPLINA d ON d.ID_Disciplina = g.ID_Disciplina
+             INNER JOIN PROFESOR_DISCIPLINA pd
+                     ON pd.ID_Disciplina = g.ID_Disciplina
+                    AND pd.ID_Profesor = ?
+             ORDER BY d.Nombre, g.Nombre'
+        );
+        $stmt->execute([$idProfesor]);
+        $grupos = $stmt->fetchAll();
+
+        echo json_encode([
+            'status' => 'success',
+            'profesor' => $profesor,
+            'disciplinas' => $disciplinas,
+            'grupos' => $grupos
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if ($accion === 'guardar_disciplinas' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $ids = $_POST['disciplinas'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn($id) => $id > 0)));
+
+        $conexion->beginTransaction();
+        try {
+            $conexion->prepare('DELETE FROM PROFESOR_DISCIPLINA WHERE ID_Profesor=?')->execute([$idProfesor]);
+            $insert = $conexion->prepare(
+                'INSERT INTO PROFESOR_DISCIPLINA(ID_Profesor,ID_Disciplina) VALUES(?,?)'
+            );
+            foreach ($ids as $idDisciplina) {
+                $insert->execute([$idProfesor, $idDisciplina]);
+            }
+            $conexion->commit();
+            echo json_encode(['status'=>'success','message'=>'Disciplinas de enseñanza actualizadas.']);
+            exit;
+        } catch (Throwable $e) {
+            $conexion->rollBack();
+            throw $e;
+        }
+    }
+
+    http_response_code(400);
+    echo json_encode(['status'=>'error','message'=>'Acción no válida.']);
+} catch (PDOException $e) {
+    error_log('Error en api/profesor_portal.php: '.$e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status'=>'error','message'=>'Hubo un problema en el servidor.']);
+}
