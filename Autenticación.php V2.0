@@ -1,0 +1,21 @@
+<?php
+// Descripción: endpoint/configuración de autenticacion. Gestiona la comunicación entre la interfaz y la base de datos.
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
+if (!isset($_SESSION['usuario_id'])) {
+    header('Location: login.html');
+    exit;
+}
+
+// Normalizar el rol guardado en sesión.
+$rolSesion = trim((string)($_SESSION['usuario_rol'] ?? ''));
+$rolesValidos = ['Administrador', 'Alumno', 'Profesor'];
+foreach ($rolesValidos as $rolValido) {
+    if (strcasecmp($rolSesion, $rolValido) === 0) {
+        $_SESSION['usuario_rol'] = $rolValido;
+        break;
+    }
+}
+?>
