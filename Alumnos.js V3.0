@@ -1,0 +1,69 @@
+// Gestión de alumnos: consulta la API, muestra la lista y registra nuevos alumnos.
+document.addEventListener("DOMContentLoaded", () => {
+    const btnGuardar = document.getElementById("btnGuardarAlumno");
+    const lista = document.getElementById("listaAlumnos");
+    const mensaje = document.getElementById("mensajeAlumno");
+
+    const mostrarMensaje = (texto, error = false) => {
+        if (!mensaje) return;
+        mensaje.textContent = texto;
+        mensaje.className = error ? "error message-center" : "success message-center";
+    };
+
+    // Crea una fila segura usando textContent para evitar insertar HTML no confiable.
+    const crearFila = alumno => {
+        const li = document.createElement("li");
+        li.className = "js-list-item";
+        const strong = document.createElement("strong");
+        strong.textContent = `${alumno.Nombre || ""} ${alumno.Apellido || ""}`;
+        const span = document.createElement("span");
+        span.className = "js-muted";
+        span.textContent = alumno.Email ? ` - ${alumno.Email}` : "";
+        li.append(strong, span);
+        return li;
+    };
+
+    const render = alumnos => {
+        lista.innerHTML = "";
+        if (!alumnos?.length) {
+            const p = document.createElement("p");
+            p.className = "js-empty";
+            p.textContent = "No hay alumnos registrados aún.";
+            lista.appendChild(p);
+            return;
+        }
+        const ul = document.createElement("ul");
+        ul.className = "js-list";
+        alumnos.forEach(a => ul.appendChild(crearFila(a)));
+        lista.appendChild(ul);
+    };
+
+    // GET obtiene los alumnos actuales desde PHP/MySQL.
+    const cargar = async () => {
+        try {
+            const r = await fetch("api/alumnos.php");
+            const data = await r.json();
+            if (data.status !== "success") throw new Error(data.message || "No se pudo cargar la lista.");
+            render(data.alumnos);
+        } catch (e) { mostrarMensaje(e.message || "Error de comunicación con el servidor.", true); }
+    };
+
+    // POST envía los datos del formulario al servidor para crear el alumno.
+    btnGuardar?.addEventListener("click", async () => {
+        const nombre = document.getElementById("nombreAlumno").value.trim();
+        const apellido = document.getElementById("apellidoAlumno").value.trim();
+        const email = document.getElementById("emailAlumno").value.trim();
+        if (!nombre || !apellido || !email) return mostrarMensaje("Completa todos los campos.", true);
+        const fd = new FormData();
+        fd.append("nombre", nombre); fd.append("apellido", apellido); fd.append("email", email);
+        try {
+            const data = await (await fetch("api/alumnos.php", { method: "POST", body: fd })).json();
+            mostrarMensaje(data.message || "Operación finalizada.", data.status !== "success");
+            if (data.status === "success") {
+                ["nombreAlumno", "apellidoAlumno", "emailAlumno"].forEach(id => document.getElementById(id).value = "");
+                cargar();
+            }
+        } catch { mostrarMensaje("Error de comunicación con el servidor.", true); }
+    });
+    cargar();
+});
