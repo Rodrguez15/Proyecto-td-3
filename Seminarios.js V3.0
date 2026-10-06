@@ -1,0 +1,289 @@
+// Módulo de seminarios y eventos.
+// Permite consultar eventos y, para el administrador, crear, editar y eliminar.
+
+document.addEventListener('DOMContentLoaded', () => {
+    const admin = Boolean(document.getElementById('btnGuardarSeminario'));
+    const box = document.getElementById('listaSeminarios');
+    const msg = document.getElementById('mensajeSeminario');
+
+    // Muestra mensajes al usuario.
+    const say = (text, error = false) => {
+        if (!msg) {
+            return;
+        }
+
+        msg.textContent = text;
+        msg.className = error ? 'error' : 'success';
+    };
+
+    // Escapa texto antes de insertarlo en HTML.
+    const esc = (value) => String(value ?? '').replace(
+        /[&<>"']/g,
+        (match) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[match])
+    );
+
+    // Consulta los seminarios disponibles.
+    function load() {
+        fetch('api/seminarios.php')
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.status !== 'success') {
+                    say(data.message, true);
+                    return;
+                }
+
+                box.innerHTML = data.seminarios
+                    .map((item) => {
+                        const nombre = item.Nombre || item.Titulo || '';
+                        const descripcion = item.Descripcion || 'Sin descripción';
+                        const costo = Number(item.Costo || 0).toFixed(2);
+
+                        let actions = '';
+
+                        if (admin) {
+                            actions = `
+                                <button
+                                    onclick="editarSem(
+                                        ${item.ID_Seminario},
+                                        '${String(nombre).replace(/'/g, "\\'")}',
+                                        '${String(descripcion).replace(/'/g, "\\'")}',
+                                        ${Number(item.Costo || 0)},
+                                        '${item.Fecha}'
+                                    )"
+                                >
+                                    Editar
+                                </button>
+
+                                <button
+                                    class="danger"
+                                    onclick="delSem(${item.ID_Seminario})"
+                                >
+                                    Eliminar
+                                </button>
+                            `;
+                        } else {
+                            const inscrito = Number(item.Inscrito) === 1;
+                            const fechaPasada = item.Fecha < new Date().toISOString().slice(0, 10);
+
+                            if (inscrito) {
+                                actions = `
+                                    <p class="success"><strong>✓ Ya estás inscripto</strong></p>
+                                    <button
+                                        class="danger"
+                                        onclick="cancelarSeminario(${item.ID_Ins_seminario})"
+                                    >
+                                        Cancelar inscripción
+                                    </button>
+                                `;
+                            } else if (fechaPasada) {
+                                actions = '<p class="muted">Este evento ya finalizó.</p>';
+                            } else {
+                                actions = `
+                                    <button onclick="inscribirSeminario(${item.ID_Seminario})">
+                                        Inscribirme
+                                    </button>
+                                `;
+                            }
+                        }
+
+                        return `
+                            <div class="member dynamic-card compact">
+                                <h2>${esc(nombre)}</h2>
+                                <p>${esc(descripcion)}</p>
+                                <p>
+                                    <strong>Costo:</strong>
+                                    $ ${costo}
+                                </p>
+                                <p>
+                                    <strong>Fecha:</strong>
+                                    ${esc(item.Fecha)}
+                                </p>
+                                ${actions}
+                            </div>
+                        `;
+                    })
+                    .join('');
+
+                if (!data.seminarios.length) {
+                    box.innerHTML =
+                        '<p class="full-grid muted-center">No hay seminarios o eventos.</p>';
+                }
+            })
+            .catch(() => {
+                say('Error en la comunicación con el servidor.', true);
+            });
+    }
+
+    // Guarda un nuevo seminario.
+    const saveButton = document.getElementById('btnGuardarSeminario');
+
+    if (saveButton) {
+        saveButton.onclick = () => {
+            const form = new FormData();
+
+            form.append(
+                'nombre',
+                document.getElementById('tituloSeminario').value.trim()
+            );
+            form.append(
+                'descripcion',
+                document.getElementById('descripcionSeminario').value.trim()
+            );
+            form.append(
+                'costo',
+                document.getElementById('costoSeminario').value || 0
+            );
+            form.append(
+                'fecha',
+                document.getElementById('fechaSeminario').value
+            );
+
+            fetch('api/seminarios.php', {
+                method: 'POST',
+                body: form
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    say(data.message, data.status !== 'success');
+
+                    if (data.status === 'success') {
+                        load();
+                    }
+                })
+                .catch(() => {
+                    say('Error en la comunicación con el servidor.', true);
+                });
+        };
+    }
+
+    // Edita un seminario existente.
+    window.editarSem = (id, nombre, descripcion, costo, fecha) => {
+        const nuevoNombre = prompt('Nombre:', nombre);
+        if (nuevoNombre === null) {
+            return;
+        }
+
+        const nuevaDescripcion = prompt('Descripción:', descripcion);
+        if (nuevaDescripcion === null) {
+            return;
+        }
+
+        const nuevoCosto = prompt('Costo:', costo);
+        if (nuevoCosto === null) {
+            return;
+        }
+
+        const nuevaFecha = prompt('Fecha YYYY-MM-DD:', fecha);
+        if (nuevaFecha === null) {
+            return;
+        }
+
+        const form = new FormData();
+        form.append('accion', 'editar');
+        form.append('id', id);
+        form.append('nombre', nuevoNombre);
+        form.append('descripcion', nuevaDescripcion);
+        form.append('costo', nuevoCosto);
+        form.append('fecha', nuevaFecha);
+
+        fetch('api/seminarios.php', {
+            method: 'POST',
+            body: form
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                say(data.message, data.status !== 'success');
+
+                if (data.status === 'success') {
+                    load();
+                }
+            })
+            .catch(() => {
+                say('Error en la comunicación con el servidor.', true);
+            });
+    };
+
+    // Elimina un seminario después de confirmar la operación.
+    window.delSem = (id) => {
+        if (!confirm('¿Eliminar este seminario o evento?')) {
+            return;
+        }
+
+        const form = new FormData();
+        form.append('accion', 'eliminar');
+        form.append('id', id);
+
+        fetch('api/seminarios.php', {
+            method: 'POST',
+            body: form
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                say(data.message, data.status !== 'success');
+
+                if (data.status === 'success') {
+                    load();
+                }
+            })
+            .catch(() => {
+                say('Error en la comunicación con el servidor.', true);
+            });
+    };
+
+    // Inscribe al alumno autenticado en un seminario/evento.
+    window.inscribirSeminario = (id) => {
+        if (!confirm('¿Quieres inscribirte a este seminario/evento?')) {
+            return;
+        }
+
+        const form = new FormData();
+        form.append('accion', 'inscribir_seminario');
+        form.append('id', id);
+
+        fetch('api/portal.php', {
+            method: 'POST',
+            body: form
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                say(data.message, data.status !== 'success');
+                if (data.status === 'success') {
+                    load();
+                }
+            })
+            .catch(() => say('No se pudo completar la inscripción.', true));
+    };
+
+    // Cancela una inscripción existente.
+    window.cancelarSeminario = (id) => {
+        if (!confirm('¿Cancelar tu inscripción a este evento?')) {
+            return;
+        }
+
+        const form = new FormData();
+        form.append('accion', 'cancelar_seminario');
+        form.append('id', id);
+
+        fetch('api/portal.php', {
+            method: 'POST',
+            body: form
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                say(data.message, data.status !== 'success');
+                if (data.status === 'success') {
+                    load();
+                }
+            })
+            .catch(() => say('No se pudo cancelar la inscripción.', true));
+    };
+
+    // Carga inicial.
+    load();
+});
