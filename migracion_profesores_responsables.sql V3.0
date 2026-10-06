@@ -1,0 +1,69 @@
+-- ============================================================
+-- MIGRACIÓN VILAMIR: PROFESORES Y RESPONSABLES
+-- Ejecutar UNA VEZ sobre una base existente mma_systems.
+-- Conserva los datos del antiguo cuerpo docente.
+-- ============================================================
+USE mma_systems;
+
+-- 1. Renombrar TUTOR a PROFESOR.
+-- Si ya ejecutaste esta migración, no vuelvas a ejecutar este bloque.
+RENAME TABLE TUTOR TO PROFESOR;
+
+-- 2. El antiguo identificador ID_Tutor pasa a llamarse ID_Profesor.
+ALTER TABLE PROFESOR
+    CHANGE COLUMN ID_Tutor ID_Profesor INT AUTO_INCREMENT;
+
+-- 3. Asegurar los datos utilizados por el módulo de profesores.
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Telefono VARCHAR(40) NULL AFTER Apellido;
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Cedula VARCHAR(30) NULL AFTER Telefono;
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Direccion VARCHAR(255) NULL AFTER Cedula;
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Especialidad VARCHAR(150) NULL AFTER Direccion;
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Email VARCHAR(150) NULL AFTER Especialidad;
+
+-- 4. Responsable: madre, padre, tutor legal u otro adulto a cargo del alumno.
+CREATE TABLE IF NOT EXISTS RESPONSABLE (
+    ID_Responsable INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Alumno INT NOT NULL,
+    Nombre VARCHAR(100) NOT NULL,
+    Apellido VARCHAR(100) NOT NULL,
+    Parentesco VARCHAR(60) NOT NULL,
+    Cedula VARCHAR(30) NULL,
+    Telefono VARCHAR(40) NULL,
+    Direccion VARCHAR(255) NULL,
+    CONSTRAINT fk_responsable_alumno
+        FOREIGN KEY (ID_Alumno) REFERENCES ALUMNO(ID_Alumno)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_responsable_alumno ON RESPONSABLE(ID_Alumno);
+
+-- 5. Actualizar roles sin perder cuentas antiguas.
+ALTER TABLE USUARIO
+    MODIFY COLUMN Rol ENUM('Administrador', 'Tutor', 'Profesor', 'Alumno') NOT NULL DEFAULT 'Alumno';
+
+UPDATE USUARIO
+SET Rol = 'Profesor'
+WHERE Rol = 'Tutor';
+
+ALTER TABLE USUARIO
+    MODIFY COLUMN Rol ENUM('Administrador', 'Profesor', 'Alumno') NOT NULL DEFAULT 'Alumno';
+
+-- ============================================================
+-- ASIGNACIÓN ACADÉMICA DE PROFESORES
+-- Cada profesor puede elegir las disciplinas que enseña.
+-- Los grupos pueden vincularse a una disciplina.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS PROFESOR_DISCIPLINA (
+    ID_Profesor INT NOT NULL,
+    ID_Disciplina INT NOT NULL,
+    Fecha_asignacion DATE NOT NULL DEFAULT (CURRENT_DATE),
+    PRIMARY KEY (ID_Profesor, ID_Disciplina),
+    CONSTRAINT fk_profdisc_profesor FOREIGN KEY (ID_Profesor)
+        REFERENCES PROFESOR(ID_Profesor) ON DELETE CASCADE,
+    CONSTRAINT fk_profdisc_disciplina FOREIGN KEY (ID_Disciplina)
+        REFERENCES DISCIPLINA(ID_Disciplina) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+ALTER TABLE GRUPO ADD COLUMN IF NOT EXISTS ID_Disciplina INT NULL AFTER Nombre;
+ALTER TABLE GRUPO ADD CONSTRAINT fk_grupo_disciplina FOREIGN KEY (ID_Disciplina)
+    REFERENCES DISCIPLINA(ID_Disciplina) ON DELETE SET NULL;
