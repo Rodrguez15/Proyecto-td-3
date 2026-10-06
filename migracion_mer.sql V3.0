@@ -1,0 +1,107 @@
+-- ============================================================
+-- MIGRACIÓN VILAMIR AL MER ENTREGADO
+-- NO borra tablas ni datos existentes.
+-- Ejecutar sobre mma_systems en phpMyAdmin.
+-- ============================================================
+USE mma_systems;
+
+-- ALUMNO: agregar atributos del MER
+ALTER TABLE ALUMNO ADD COLUMN IF NOT EXISTS Fecha_nacimiento DATE NULL AFTER Apellido;
+ALTER TABLE ALUMNO ADD COLUMN IF NOT EXISTS Direccion VARCHAR(255) NULL AFTER Fecha_nacimiento;
+ALTER TABLE ALUMNO ADD COLUMN IF NOT EXISTS Telefono VARCHAR(40) NULL AFTER Direccion;
+ALTER TABLE ALUMNO ADD COLUMN IF NOT EXISTS Cobertura_medica VARCHAR(150) NULL AFTER Telefono;
+
+-- PROFESOR: adaptar al MER; se conservan columnas antiguas si existen.
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Telefono VARCHAR(40) NULL AFTER Apellido;
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Cedula VARCHAR(30) NULL AFTER Telefono;
+ALTER TABLE PROFESOR ADD COLUMN IF NOT EXISTS Direccion VARCHAR(255) NULL AFTER Cedula;
+ALTER TABLE PROFESOR MODIFY COLUMN Especialidad VARCHAR(150) NULL;
+ALTER TABLE PROFESOR MODIFY COLUMN Email VARCHAR(150) NULL;
+
+CREATE TABLE IF NOT EXISTS DISCIPLINA (
+  ID_Disciplina INT AUTO_INCREMENT PRIMARY KEY,
+  Nombre VARCHAR(150) NOT NULL,
+  Descripcion TEXT NULL,
+  Costo DECIMAL(10,2) NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+-- La entidad GRUPO ya existe en el proyecto; se agrega el atributo del MER si falta.
+ALTER TABLE GRUPO ADD COLUMN IF NOT EXISTS Cupo_maximo INT NOT NULL DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS HORARIO (
+  ID_Horario INT AUTO_INCREMENT PRIMARY KEY,
+  Dia VARCHAR(20) NOT NULL,
+  Hora_inicio TIME NOT NULL,
+  Hora_fin TIME NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS PAGO (
+  ID_Pago INT AUTO_INCREMENT PRIMARY KEY,
+  ID_Alumno INT NOT NULL,
+  Tipo VARCHAR(80) NOT NULL,
+  Fecha DATE NOT NULL,
+  Importe DECIMAL(10,2) NOT NULL DEFAULT 0,
+  Estado VARCHAR(40) NOT NULL DEFAULT 'Pendiente',
+  Metodo_pago VARCHAR(60) NULL,
+  CONSTRAINT fk_pago_alumno FOREIGN KEY (ID_Alumno) REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS NOTIFICACION (
+  ID_Notificacion INT AUTO_INCREMENT PRIMARY KEY,
+  ID_Alumno INT NOT NULL,
+  Estado VARCHAR(40) NOT NULL DEFAULT 'Pendiente',
+  Mensaje TEXT NOT NULL,
+  Fecha DATE NOT NULL,
+  CONSTRAINT fk_notificacion_alumno FOREIGN KEY (ID_Alumno) REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- SEMINARIO ya puede existir con columnas antiguas. Agregar las del MER.
+ALTER TABLE SEMINARIO ADD COLUMN IF NOT EXISTS Nombre VARCHAR(150) NULL AFTER ID_Seminario;
+ALTER TABLE SEMINARIO ADD COLUMN IF NOT EXISTS Descripcion TEXT NULL AFTER Nombre;
+ALTER TABLE SEMINARIO ADD COLUMN IF NOT EXISTS Costo DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER Descripcion;
+ALTER TABLE SEMINARIO MODIFY COLUMN Titulo VARCHAR(150) NULL;
+ALTER TABLE SEMINARIO MODIFY COLUMN Ponente VARCHAR(150) NULL;
+-- Copiar título antiguo a Nombre cuando corresponda.
+UPDATE SEMINARIO SET Nombre = COALESCE(NULLIF(Nombre,''), Titulo) WHERE Nombre IS NULL OR Nombre='';
+ALTER TABLE SEMINARIO MODIFY COLUMN Nombre VARCHAR(150) NOT NULL;
+
+CREATE TABLE IF NOT EXISTS PROMOCION (
+  ID_Promocion INT AUTO_INCREMENT PRIMARY KEY,
+  Nombre VARCHAR(150) NOT NULL,
+  Descripcion TEXT NULL,
+  Descuento DECIMAL(5,2) NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS INSCRIPCION_DISCIPLINA (
+  ID_Ins_disciplina INT AUTO_INCREMENT PRIMARY KEY,
+  ID_Alumno INT NOT NULL,
+  ID_Disciplina INT NOT NULL,
+  Fecha_ins DATE NOT NULL,
+  Estado VARCHAR(40) NOT NULL DEFAULT 'Activa',
+  UNIQUE KEY uq_ins_disciplina (ID_Alumno,ID_Disciplina),
+  CONSTRAINT fk_ins_disc_alumno FOREIGN KEY (ID_Alumno) REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE,
+  CONSTRAINT fk_ins_disc_disciplina FOREIGN KEY (ID_Disciplina) REFERENCES DISCIPLINA(ID_Disciplina) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS INSCRIPCION_SEMINARIO (
+  ID_Ins_seminario INT AUTO_INCREMENT PRIMARY KEY,
+  ID_Alumno INT NOT NULL,
+  ID_Seminario INT NOT NULL,
+  Fecha_ins DATE NOT NULL,
+  Estado VARCHAR(40) NOT NULL DEFAULT 'Activa',
+  UNIQUE KEY uq_ins_seminario (ID_Alumno,ID_Seminario),
+  CONSTRAINT fk_ins_sem_alumno FOREIGN KEY (ID_Alumno) REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE,
+  CONSTRAINT fk_ins_sem_seminario FOREIGN KEY (ID_Seminario) REFERENCES SEMINARIO(ID_Seminario) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Migrar las clases antiguas a disciplinas, si existen.
+INSERT INTO DISCIPLINA (Nombre,Descripcion,Costo)
+SELECT c.Nombre, CONCAT('Migrado desde la clase. Días: ',c.Dias,' | Horario: ',c.Horario),0
+FROM CLASE c
+LEFT JOIN DISCIPLINA d ON d.Nombre=c.Nombre
+WHERE d.ID_Disciplina IS NULL;
+
+-- Corregir el administrador inicial sin borrar otros usuarios.
+INSERT INTO USUARIO (Email,Contraseña,Rol)
+VALUES ('vilamir@gmail.com','$2y$12$u0kskfOvF15IqaFWQjOp1Ol52hCDGnOEtE05KwDwOP5k7oDbWFc5e','Administrador')
+ON DUPLICATE KEY UPDATE Rol='Administrador';
