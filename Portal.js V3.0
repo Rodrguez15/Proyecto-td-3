@@ -1,0 +1,161 @@
+// Portal del alumno.
+// Obtiene desde la API la información personal del usuario autenticado.
+
+// Escapa texto antes de insertarlo en HTML.
+const esc = (value) => String(value ?? '').replace(
+    /[&<>"']/g,
+    (match) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[match])
+);
+
+// GET: solicita el resumen completo del alumno.
+async function load() {
+    const response = await fetch('api/portal.php?entity=resumen');
+    const data = await response.json();
+
+    if (data.status !== 'success') {
+        alert(data.message);
+        return;
+    }
+
+    const perfil = data.perfil;
+
+    // Muestra los datos personales.
+    document.getElementById('perfil').innerHTML = `
+        <p>
+            <b>${esc(perfil.Nombre)} ${esc(perfil.Apellido)}</b>
+        </p>
+        <p>${esc(perfil.Email)}</p>
+        <p>
+            Teléfono:
+            ${esc(perfil.Telefono || 'No informado')}
+        </p>
+        <p>
+            Cobertura:
+            ${esc(perfil.Cobertura_medica || 'No informada')}
+        </p>
+    `;
+
+    // Muestra el historial de pagos.
+    document.getElementById('pagos').innerHTML = data.pagos.length
+        ? data.pagos
+              .map(
+                  (item) => `
+                    <div class="item">
+                        <div>
+                            ${esc(item.Tipo)} —
+                            <span class="money">
+                                $${Number(item.Importe).toFixed(2)}
+                            </span>
+                        </div>
+                        <small>
+                            ${esc(item.Fecha)} ·
+                            <span class="badge">
+                                ${esc(item.Estado)}
+                            </span>
+                            · ${esc(item.Metodo_pago || 'Sin método')}
+                        </small>
+                    </div>
+                `
+              )
+              .join('')
+        : '<p class="muted">No hay pagos registrados.</p>';
+
+    // Muestra las notificaciones del alumno.
+    document.getElementById('notificaciones').innerHTML = data.notificaciones.length
+        ? data.notificaciones
+              .map(
+                  (item) => `
+                    <div class="item">
+                        <b>${esc(item.Estado)}</b>
+                        <p>${esc(item.Mensaje)}</p>
+                        <small>${esc(item.Fecha)}</small>
+                    </div>
+                `
+              )
+              .join('')
+        : '<p class="muted">No tienes notificaciones.</p>';
+
+    // Muestra las disciplinas en las que está inscrito.
+    document.getElementById('disciplinas').innerHTML = data.disciplinas.length
+        ? data.disciplinas
+              .map(
+                  (item) => `
+                    <div class="item">
+                        <b>${esc(item.Nombre)}</b>
+                        <p>${esc(item.Descripcion || '')}</p>
+                        <small>
+                            $${Number(item.Costo).toFixed(2)} ·
+                            ${esc(item.Estado)}
+                        </small>
+                        <br>
+                        <button
+                            class="danger"
+                            onclick="cancelar('disciplina', ${item.ID_Ins_disciplina})"
+                        >
+                            Cancelar inscripción
+                        </button>
+                    </div>
+                `
+              )
+              .join('')
+        : '<p class="muted">No estás inscrito en disciplinas.</p>';
+
+    // Muestra las inscripciones a seminarios.
+    document.getElementById('seminarios').innerHTML = data.seminarios.length
+        ? data.seminarios
+              .map(
+                  (item) => `
+                    <div class="item">
+                        <b>${esc(item.Nombre)}</b>
+                        <p>${esc(item.Descripcion || '')}</p>
+                        <small>
+                            ${esc(item.Fecha)} ·
+                            $${Number(item.Costo).toFixed(2)} ·
+                            ${esc(item.Estado)}
+                        </small>
+                        <br>
+                        <button
+                            class="danger"
+                            onclick="cancelar('seminario', ${item.ID_Ins_seminario})"
+                        >
+                            Cancelar inscripción
+                        </button>
+                    </div>
+                `
+              )
+              .join('')
+        : '<p class="muted">No estás inscrito en seminarios.</p>';
+}
+
+// POST: cancela una inscripción del alumno autenticado.
+async function cancelar(tipo, id) {
+    if (!confirm('¿Cancelar esta inscripción?')) {
+        return;
+    }
+
+    const form = new FormData();
+    form.append('accion', `cancelar_${tipo}`);
+    form.append('id', id);
+
+    const response = await fetch('api/portal.php', {
+        method: 'POST',
+        body: form
+    });
+
+    const data = await response.json();
+
+    alert(data.message);
+
+    if (data.status === 'success') {
+        load();
+    }
+}
+
+// Carga inicial del portal.
+load();
