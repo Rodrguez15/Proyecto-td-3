@@ -1,0 +1,20 @@
+<?php
+// Descripción: endpoint/configuración de mis_clases. Gestiona la comunicación entre la interfaz y la base de datos.
+require_once dirname(__DIR__) . '/config/conexion.php';
+if(session_status()===PHP_SESSION_NONE)session_start();
+header('Content-Type: application/json; charset=utf-8');
+if(!isset($_SESSION['usuario_id'])||($_SESSION['usuario_rol']??'')!=='Alumno') {
+    http_response_code(403);
+    echo json_encode(['status'=>'error','message'=>'Acceso permitido únicamente a alumnos.']);
+    exit;
+}
+try {
+    $s=$conexion->prepare("SELECT d.ID_Disciplina,d.Nombre,d.Descripcion,d.Costo,i.Fecha_ins,i.Estado FROM INSCRIPCION_DISCIPLINA i JOIN ALUMNO a ON a.ID_Alumno=i.ID_Alumno JOIN DISCIPLINA d ON d.ID_Disciplina=i.ID_Disciplina WHERE a.ID_Usuario=? ORDER BY d.Nombre");
+    $s->execute([(int)$_SESSION['usuario_id']]);
+    echo json_encode(['status'=>'success','clases'=>$s->fetchAll()]);
+}
+catch(Throwable $e) {
+    error_log('mis_clases: '.$e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status'=>'error','message'=>'No se pudieron cargar tus clases.']);
+}
