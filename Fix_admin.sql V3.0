@@ -1,0 +1,20 @@
+-- CORRECCIÓN DEL ADMINISTRADOR VILAMIR
+-- Ejecutar dentro de la base de datos mma_systems.
+-- No elimina usuarios ni otros datos.
+
+UPDATE USUARIO
+SET Contraseña = '$2y$12$u0kskfOvF15IqaFWQjOp1Ol52hCDGnOEtE05KwDwOP5k7oDbWFc5e',
+    Rol = 'Administrador'
+WHERE LOWER(TRIM(Email)) = 'vilamir@gmail.com;
+
+-- Si el administrador no existe, créalo.
+INSERT INTO USUARIO (Email, Contraseña, Rol)
+SELECT 'vilamir@gmail.com, '$2y$12$u0kskfOvF15IqaFWQjOp1Ol52hCDGnOEtE05KwDwOP5k7oDbWFc5e', 'Administrador'
+WHERE NOT EXISTS (
+    SELECT 1 FROM USUARIO WHERE LOWER(TRIM(Email)) = 'vilamir@gmail.com'
+);
+
+-- Comprobar resultado
+SELECT ID_Usuario, Email, Rol, LENGTH(Contraseña) AS LargoHash
+FROM USUARIO
+WHERE LOWER(TRIM(Email)) = 'vilamir@gmail.com;
