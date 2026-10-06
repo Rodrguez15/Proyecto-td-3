@@ -1,0 +1,92 @@
+<?php
+// Descripción: endpoint/configuración de alumnos. Gestiona la comunicación entre la interfaz y la base de datos.
+// ============================================================
+// API ALUMNOS - MMA SYSTEMS
+// GET  -> lista de alumnos (con email de USUARIO)
+// POST -> registra un alumno (crea cuenta con contraseña temporal)
+// ============================================================
+require_once dirname(__DIR__) . '/config/conexion.php';
+
+// Protección: sin sesión activa se responde 401 JSON (no redirect)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (!isset($_SESSION['usuario_id'])) {
+    http_response_code(401);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['status' => 'error', 'message' => 'No autorizado.']);
+    exit;
+}
+
+header('Content-Type: application/json; charset=utf-8');
+$rol = $_SESSION['usuario_rol'] ?? '';
+if ($rol !== 'Administrador') {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Solo el administrador puede acceder a este módulo.']);
+    exit;
+}
+$method = $_SERVER['REQUEST_METHOD'];
+
+try {
+    if ($method === 'GET') {
+        $stmt = $conexion->query(
+            "SELECT a.ID_Alumno, a.Nombre, a.Apellido, u.Email
+             FROM ALUMNO a
+             INNER JOIN USUARIO u ON u.ID_Usuario = a.ID_Usuario
+             ORDER BY a.Nombre ASC, a.Apellido ASC"
+        );
+        echo json_encode(['status' => 'success', 'alumnos' => $stmt->fetchAll()]);
+        exit;
+
+    } elseif ($method === 'POST') {
+        $accion = $_POST['accion'] ?? 'crear';
+        $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+
+        if ($accion === 'eliminar') {
+            if ($id <= 0) { echo json_encode(['status'=>'error','message'=>'ID no válido.']); exit; }
+            $stmt=$conexion->prepare("SELECT ID_Usuario FROM ALUMNO WHERE ID_Alumno=:id LIMIT 1");
+            $stmt->execute([':id'=>$id]); $row=$stmt->fetch();
+            if(!$row){echo json_encode(['status'=>'error','message'=>'Alumno no encontrado.']);exit;}
+            $stmt=$conexion->prepare("DELETE FROM ALUMNO WHERE ID_Alumno=:id"); $stmt->execute([':id'=>$id]);
+            $stmt=$conexion->prepare("DELETE FROM USUARIO WHERE ID_Usuario=:uid"); $stmt->execute([':uid'=>(int)$row['ID_Usuario']]);
+            echo json_encode(['status'=>'success','message'=>'Alumno eliminado correctamente.']); exit;
+        }
+
+        $nombre=trim($_POST['nombre']??''); $apellido=trim($_POST['apellido']??''); $email=trim($_POST['email']??'');
+        if($nombre===''||$apellido===''||!filter_var($email,FILTER_VALIDATE_EMAIL)){echo json_encode(['status'=>'error','message'=>'Complete correctamente nombre, apellido y correo.']);exit;}
+
+        if ($accion === 'editar') {
+            if($id<=0){echo json_encode(['status'=>'error','message'=>'ID no válido.']);exit;}
+            $stmt=$conexion->prepare("SELECT ID_Usuario FROM ALUMNO WHERE ID_Alumno=:id LIMIT 1"); $stmt->execute([':id'=>$id]); $row=$stmt->fetch();
+            if(!$row){echo json_encode(['status'=>'error','message'=>'Alumno no encontrado.']);exit;}
+            $stmt=$conexion->prepare("SELECT ID_Usuario FROM USUARIO WHERE LOWER(Email)=LOWER(:email) AND ID_Usuario<>:uid LIMIT 1"); $stmt->execute([':email'=>$email,':uid'=>(int)$row['ID_Usuario']]);
+            if($stmt->fetch()){echo json_encode(['status'=>'error','message'=>'Ese correo ya está utilizado.']);exit;}
+            $stmt=$conexion->prepare("UPDATE ALUMNO SET Nombre=:nombre, Apellido=:apellido WHERE ID_Alumno=:id"); $stmt->execute([':nombre'=>$nombre,':apellido'=>$apellido,':id'=>$id]);
+            $stmt=$conexion->prepare("UPDATE USUARIO SET Email=:email WHERE ID_Usuario=:uid"); $stmt->execute([':email'=>$email,':uid'=>(int)$row['ID_Usuario']]);
+            echo json_encode(['status'=>'success','message'=>'Alumno actualizado correctamente.']); exit;
+        }
+
+        $stmt=$conexion->prepare("SELECT ID_Usuario FROM USUARIO WHERE Email=:email LIMIT 1"); $stmt->execute([':email'=>$email]);
+        if($stmt->fetch()){echo json_encode(['status'=>'error','message'=>'Este correo ya está registrado en el sistema.']);exit;}
+        $temporal = bin2hex(random_bytes(5)); $hash=password_hash($temporal,PASSWORD_DEFAULT);
+        $conexion->beginTransaction();
+        try {
+            $stmt=$conexion->prepare("INSERT INTO USUARIO (Email, Contraseña, Rol) VALUES (:email,:hash,'Alumno')"); $stmt->execute([':email'=>$email,':hash'=>$hash]); $uid=(int)$conexion->lastInsertId();
+            $stmt=$conexion->prepare("INSERT INTO ALUMNO (ID_Usuario,Nombre,Apellido) VALUES (:uid,:nombre,:apellido)"); $stmt->execute([':uid'=>$uid,':nombre'=>$nombre,':apellido'=>$apellido]);
+            $conexion->commit();
+        } catch(Exception $e){$conexion->rollBack();throw $e;}
+        echo json_encode(['status'=>'success','message'=>"Alumno registrado. Contraseña temporal: {$temporal}"]); exit;
+    } else {
+        http_response_code(405);
+        echo json_encode(['status' => 'error', 'message' => 'Método no permitido.']);
+        exit;
+    }
+
+} catch (PDOException $e) {
+    if (isset($conexion) && $conexion->inTransaction()) {
+        $conexion->rollBack();
+    }
+    error_log("Error en api/alumnos.php: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Hubo un problema en el servidor.']);
+}
