@@ -1,0 +1,92 @@
+<?php
+// Descripción: endpoint/configuración de portal. Gestiona la comunicación entre la interfaz y la base de datos.
+require_once dirname(__DIR__).'/config/conexion.php';
+if(session_status()===PHP_SESSION_NONE)session_start();
+header('Content-Type: application/json; charset=utf-8');
+if(!isset($_SESSION['usuario_id'])) {
+    http_response_code(401);
+    echo json_encode(['status'=>'error','message'=>'Sesión requerida.']);
+    exit;
+}
+function outp($x,$c=200) {
+    http_response_code($c);
+    echo json_encode($x,JSON_UNESCAPED_UNICODE);
+    exit;
+}
+try {
+    $uid=(int)$_SESSION['usuario_id'];
+    $q=$conexion->prepare('SELECT ID_Alumno FROM ALUMNO WHERE ID_Usuario=?');
+    $q->execute([$uid]);
+    $alumno=$q->fetchColumn();
+    if(!$alumno)outp(['status'=>'error','message'=>'La cuenta no está asociada a un alumno.'],403);
+    if($_SERVER['REQUEST_METHOD']==='POST') {
+        $accion=$_POST['accion']??'';
+        $id=(int)($_POST['id']??0);
+        $fecha=$_POST['fecha']??date('Y-m-d');
+        if($accion==='inscribir_disciplina') {
+            $q=$conexion->prepare('INSERT INTO INSCRIPCION_DISCIPLINA(ID_Alumno,ID_Disciplina,Fecha_ins,Estado) VALUES(?,?,?,?)');
+            $q->execute([$alumno,$id,$fecha,'Activa']);
+            outp(['status'=>'success','message'=>'Inscripción realizada.']);
+        }
+        if($accion==='inscribir_seminario') {
+            if($id<=0)outp(['status'=>'error','message'=>'Seminario/evento no válido.'],400);
+            $q=$conexion->prepare('SELECT ID_Seminario,Fecha FROM SEMINARIO WHERE ID_Seminario=?');
+            $q->execute([$id]);
+            $seminario=$q->fetch();
+            if(!$seminario)outp(['status'=>'error','message'=>'El seminario/evento no existe.'],404);
+            if($seminario['Fecha'] < date('Y-m-d'))outp(['status'=>'error','message'=>'No puedes inscribirte a un evento que ya finalizó.'],400);
+
+            $q=$conexion->prepare('SELECT ID_Ins_seminario FROM INSCRIPCION_SEMINARIO WHERE ID_Alumno=? AND ID_Seminario=?');
+            $q->execute([$alumno,$id]);
+            if($q->fetchColumn())outp(['status'=>'error','message'=>'Ya estás inscripto en este seminario/evento.'],409);
+
+            $q=$conexion->prepare('INSERT INTO INSCRIPCION_SEMINARIO(ID_Alumno,ID_Seminario,Fecha_ins,Estado) VALUES(?,?,?,?)');
+            $q->execute([$alumno,$id,date('Y-m-d'),'Activa']);
+            outp(['status'=>'success','message'=>'¡Inscripción al seminario/evento realizada correctamente!']);
+        }
+        if($accion==='cancelar_disciplina') {
+            $q=$conexion->prepare('DELETE FROM INSCRIPCION_DISCIPLINA WHERE ID_Ins_disciplina=? AND ID_Alumno=?');
+            $q->execute([$id,$alumno]);
+            outp(['status'=>'success','message'=>'Inscripción cancelada.']);
+        }
+        if($accion==='cancelar_seminario') {
+            $q=$conexion->prepare('DELETE FROM INSCRIPCION_SEMINARIO WHERE ID_Ins_seminario=? AND ID_Alumno=?');
+            $q->execute([$id,$alumno]);
+            outp(['status'=>'success','message'=>'Inscripción cancelada.']);
+        }
+    }
+    $entity=$_GET['entity']??'resumen';
+    if($entity==='resumen') {
+        $q=$conexion->prepare('SELECT a.*,u.Email FROM ALUMNO a JOIN USUARIO u ON u.ID_Usuario=a.ID_Usuario WHERE a.ID_Alumno=?');
+        $q->execute([$alumno]);
+        $perfil=$q->fetch();
+        $q=$conexion->prepare("SELECT i.ID_Ins_disciplina,i.Fecha_ins,i.Estado,d.Nombre,d.Descripcion,d.Costo FROM INSCRIPCION_DISCIPLINA i JOIN DISCIPLINA d ON d.ID_Disciplina=i.ID_Disciplina WHERE i.ID_Alumno=? ORDER BY i.Fecha_ins DESC");
+        $q->execute([$alumno]);
+        $disciplinas=$q->fetchAll();
+        $q=$conexion->prepare("SELECT i.ID_Ins_seminario,i.Fecha_ins,i.Estado,s.Nombre,s.Descripcion,s.Costo,s.Fecha FROM INSCRIPCION_SEMINARIO i JOIN SEMINARIO s ON s.ID_Seminario=i.ID_Seminario WHERE i.ID_Alumno=? ORDER BY s.Fecha DESC");
+        $q->execute([$alumno]);
+        $seminarios=$q->fetchAll();
+        $q=$conexion->prepare('SELECT * FROM PAGO WHERE ID_Alumno=? ORDER BY Fecha DESC,ID_Pago DESC');
+        $q->execute([$alumno]);
+        $pagos=$q->fetchAll();
+        $q=$conexion->prepare('SELECT * FROM NOTIFICACION WHERE ID_Alumno=? ORDER BY Fecha DESC,ID_Notificacion DESC');
+        $q->execute([$alumno]);
+        $notificaciones=$q->fetchAll();
+        outp(['status'=>'success','perfil'=>$perfil,'disciplinas'=>$disciplinas,'seminarios'=>$seminarios,'pagos'=>$pagos,'notificaciones'=>$notificaciones]);
+    }
+    if($entity==='disciplinas') {
+        $q=$conexion->prepare("SELECT d.*,IF(i.ID_Ins_disciplina IS NULL,0,1) Inscrito FROM DISCIPLINA d LEFT JOIN INSCRIPCION_DISCIPLINA i ON i.ID_Disciplina=d.ID_Disciplina AND i.ID_Alumno=? ORDER BY d.Nombre");
+        $q->execute([$alumno]);
+        outp(['status'=>'success','rows'=>$q->fetchAll()]);
+    }
+    if($entity==='seminarios') {
+        $q=$conexion->prepare("SELECT s.*,IF(i.ID_Ins_seminario IS NULL,0,1) Inscrito FROM SEMINARIO s LEFT JOIN INSCRIPCION_SEMINARIO i ON i.ID_Seminario=s.ID_Seminario AND i.ID_Alumno=? WHERE s.Fecha>=CURDATE() ORDER BY s.Fecha");
+        $q->execute([$alumno]);
+        outp(['status'=>'success','rows'=>$q->fetchAll()]);
+    }
+    outp(['status'=>'error','message'=>'Módulo no válido.'],400);
+}
+catch(Throwable $e) {
+    error_log('portal: '.$e->getMessage());
+    outp(['status'=>'error','message'=>'No se pudo completar la operación.'],500);
+}
