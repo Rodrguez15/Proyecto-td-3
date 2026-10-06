@@ -1,0 +1,184 @@
+<?php
+// Reportes administrativos de VILAMIR.
+// Este archivo consulta la base de datos y muestra estadísticas generales.
+
+// Verifica que el usuario tenga sesión y rol de administrador.
+require_once 'config/admin.php';
+
+// Carga la conexión PDO con MySQL.
+require_once 'config/conexion.php';
+
+// Cuenta la cantidad total de alumnos registrados.
+$alumnos = (int) $conexion
+    ->query('SELECT COUNT(*) FROM ALUMNO')
+    ->fetchColumn();
+
+// Cuenta la cantidad total de disciplinas.
+$disciplinas = (int) $conexion
+    ->query('SELECT COUNT(*) FROM DISCIPLINA')
+    ->fetchColumn();
+
+// Cuenta los seminarios cuya fecha todavía no pasó.
+$seminarios = (int) $conexion
+    ->query('SELECT COUNT(*) FROM SEMINARIO WHERE Fecha >= CURDATE()')
+    ->fetchColumn();
+
+// Suma todos los pagos que todavía están pendientes.
+$pendientes = (float) $conexion
+    ->query("SELECT COALESCE(SUM(Importe), 0) FROM PAGO WHERE Estado = 'Pendiente'")
+    ->fetchColumn();
+
+// Suma todos los pagos que ya fueron realizados.
+$pagado = (float) $conexion
+    ->query("SELECT COALESCE(SUM(Importe), 0) FROM PAGO WHERE Estado = 'Pagado'")
+    ->fetchColumn();
+
+// Obtiene las disciplinas con mayor cantidad de inscripciones.
+$top = $conexion
+    ->query(
+        "SELECT
+            d.Nombre,
+            COUNT(i.ID_Ins_disciplina) AS Inscritos
+        FROM DISCIPLINA d
+        LEFT JOIN INSCRIPCION_DISCIPLINA i
+            ON i.ID_Disciplina = d.ID_Disciplina
+        GROUP BY d.ID_Disciplina, d.Nombre
+        ORDER BY Inscritos DESC, d.Nombre
+        LIMIT 10"
+    )
+    ->fetchAll();
+
+// Obtiene las últimas diez inscripciones realizadas.
+$recent = $conexion
+    ->query(
+        "SELECT
+            CONCAT(a.Nombre, ' ', a.Apellido) AS Alumno,
+            d.Nombre AS Disciplina,
+            i.Fecha_ins,
+            i.Estado
+        FROM INSCRIPCION_DISCIPLINA i
+        INNER JOIN ALUMNO a
+            ON a.ID_Alumno = i.ID_Alumno
+        INNER JOIN DISCIPLINA d
+            ON d.ID_Disciplina = i.ID_Disciplina
+        ORDER BY i.Fecha_ins DESC
+        LIMIT 10"
+    )
+    ->fetchAll();
+
+// Nombre que se muestra en la cabecera.
+$nombre = $_SESSION['usuario_nombre'] ?? 'Administrador';
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes - VILAMIR</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="about-page">
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+
+        <nav>
+            <a href="index.php">Inicio</a>
+            <a href="admin.php">Administración</a>
+            <a href="reportes.php">Reportes</a>
+            <a href="about.html">About Us</a>
+            <a href="logout.php">Cerrar sesión</a>
+        </nav>
+    </header>
+
+    <main class="wrap">
+        <section class="card">
+            <button class="print" onclick="window.print()">Imprimir</button>
+            <h1>Reportes y estadísticas</h1>
+            <p>Resumen del funcionamiento de VILAMIR.</p>
+        </section>
+
+        <section class="cards">
+            <div class="card">
+                <span>Alumnos</span>
+                <div class="num"><?= $alumnos ?></div>
+            </div>
+
+            <div class="card">
+                <span>Disciplinas</span>
+                <div class="num"><?= $disciplinas ?></div>
+            </div>
+
+            <div class="card">
+                <span>Próximos seminarios</span>
+                <div class="num"><?= $seminarios ?></div>
+            </div>
+
+            <div class="card">
+                <span>Pagos pendientes</span>
+                <div class="num">
+                    $<?= number_format($pendientes, 2, ',', '.') ?>
+                </div>
+            </div>
+
+            <div class="card">
+                <span>Total cobrado</span>
+                <div class="num">
+                    $<?= number_format($pagado, 2, ',', '.') ?>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid">
+            <section class="card">
+                <h2>🥋 Disciplinas más solicitadas</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Disciplina</th>
+                            <th>Inscritos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($top as $r): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($r['Nombre']) ?></td>
+                                <td><?= (int) $r['Inscritos'] ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="card">
+                <h2>📝 Inscripciones recientes</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Alumno</th>
+                            <th>Disciplina</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($recent as $r): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($r['Alumno']) ?></td>
+                                <td><?= htmlspecialchars($r['Disciplina']) ?></td>
+                                <td><?= htmlspecialchars($r['Fecha_ins']) ?></td>
+                                <td><?= htmlspecialchars($r['Estado']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        © 2026 MMA Systems
+    </footer>
+</body>
+</html>
