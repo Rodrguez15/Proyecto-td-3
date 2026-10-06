@@ -1,0 +1,227 @@
+<?php
+// ============================================================
+// API GRUPOS
+// GET  -> lista grupos y estado de inscripción del usuario.
+// POST -> crear, editar, eliminar, inscribirse o darse de baja.
+// ============================================================
+require_once dirname(__DIR__) . '/config/conexion.php';
+
+if (session_status() === PHP_SESSION_NONE) session_start();
+header('Content-Type: application/json; charset=utf-8');
+
+if (!isset($_SESSION['usuario_id'])) {
+    http_response_code(401);
+    echo json_encode(['status'=>'error','message'=>'No autorizado.']);
+    exit;
+}
+
+$rol = $_SESSION['usuario_rol'] ?? '';
+$nivelesPermitidos = ['Principiante','Intermedio','Avanzado','Competencia'];
+
+function responder($datos, $codigo=200) {
+    http_response_code($codigo);
+    echo json_encode($datos, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+try {
+    // --------------------------------------------------------
+    // GET: grupos disponibles
+    // --------------------------------------------------------
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $uid = (int)$_SESSION['usuario_id'];
+        $idAlumno = 0;
+        $idProfesor = 0;
+
+        if ($rol === 'Alumno') {
+            $q = $conexion->prepare('SELECT ID_Alumno FROM ALUMNO WHERE ID_Usuario=? LIMIT 1');
+            $q->execute([$uid]);
+            $idAlumno = (int)($q->fetchColumn() ?: 0);
+        } elseif ($rol === 'Profesor') {
+            $q = $conexion->prepare('SELECT ID_Profesor FROM PROFESOR WHERE ID_Usuario=? LIMIT 1');
+            $q->execute([$uid]);
+            $idProfesor = (int)($q->fetchColumn() ?: 0);
+        }
+
+        $sql = "
+            SELECT
+                g.ID_Grupo,
+                g.Nombre,
+                g.ID_Disciplina,
+                d.Nombre AS Disciplina,
+                g.Nivel,
+                g.Descripcion,
+                g.Cupo_maximo,
+                (
+                    SELECT COUNT(*)
+                    FROM INSCRIPCION_GRUPO_ALUMNO iga
+                    WHERE iga.ID_Grupo=g.ID_Grupo AND iga.Estado='Activa'
+                ) AS Alumnos_inscritos,
+                CASE
+                    WHEN ? > 0 AND EXISTS (
+                        SELECT 1 FROM INSCRIPCION_GRUPO_ALUMNO x
+                        WHERE x.ID_Grupo=g.ID_Grupo AND x.ID_Alumno=? AND x.Estado='Activa'
+                    ) THEN 1 ELSE 0
+                END AS Alumno_inscrito,
+                CASE
+                    WHEN ? > 0 AND EXISTS (
+                        SELECT 1 FROM INSCRIPCION_GRUPO_PROFESOR x
+                        WHERE x.ID_Grupo=g.ID_Grupo AND x.ID_Profesor=? AND x.Estado='Activa'
+                    ) THEN 1 ELSE 0
+                END AS Profesor_inscrito
+            FROM GRUPO g
+            LEFT JOIN DISCIPLINA d ON d.ID_Disciplina=g.ID_Disciplina
+            ORDER BY d.Nombre ASC, g.Nombre ASC
+        ";
+        $q = $conexion->prepare($sql);
+        $q->execute([$idAlumno,$idAlumno,$idProfesor,$idProfesor]);
+
+        responder([
+            'status'=>'success',
+            'grupos'=>$q->fetchAll(),
+            'rol'=>$rol
+        ]);
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        responder(['status'=>'error','message'=>'Método no permitido.'],405);
+    }
+
+    $accion = $_POST['accion'] ?? 'crear';
+
+    // --------------------------------------------------------
+    // Inscripción de alumno o profesor.
+    // --------------------------------------------------------
+    if ($accion === 'inscribir') {
+        $idGrupo = (int)($_POST['id_grupo'] ?? 0);
+        if ($idGrupo <= 0) responder(['status'=>'error','message'=>'Grupo no válido.']);
+
+        $q = $conexion->prepare('SELECT ID_Grupo, ID_Disciplina, Cupo_maximo FROM GRUPO WHERE ID_Grupo=? LIMIT 1');
+        $q->execute([$idGrupo]);
+        $grupo = $q->fetch();
+
+        if (!$grupo) responder(['status'=>'error','message'=>'El grupo no existe.']);
+
+        $uid = (int)$_SESSION['usuario_id'];
+
+        if ($rol === 'Alumno') {
+            $q = $conexion->prepare('SELECT ID_Alumno FROM ALUMNO WHERE ID_Usuario=? LIMIT 1');
+            $q->execute([$uid]);
+            $idAlumno = (int)($q->fetchColumn() ?: 0);
+            if (!$idAlumno) responder(['status'=>'error','message'=>'No se encontró el alumno asociado.'],403);
+
+            $q = $conexion->prepare('SELECT ID_Inscripcion FROM INSCRIPCION_GRUPO_ALUMNO WHERE ID_Alumno=? AND ID_Grupo=? LIMIT 1');
+            $q->execute([$idAlumno,$idGrupo]);
+            if ($q->fetch()) responder(['status'=>'error','message'=>'Ya estás inscrito en este grupo.']);
+
+            $q = $conexion->prepare("SELECT COUNT(*) FROM INSCRIPCION_GRUPO_ALUMNO WHERE ID_Grupo=? AND Estado='Activa'");
+            $q->execute([$idGrupo]);
+            $cantidad = (int)$q->fetchColumn();
+
+            if ($cantidad >= (int)$grupo['Cupo_maximo']) {
+                responder(['status'=>'error','message'=>'Este grupo ya alcanzó su cupo máximo.']);
+            }
+
+            $q = $conexion->prepare("INSERT INTO INSCRIPCION_GRUPO_ALUMNO(ID_Alumno,ID_Grupo,Estado) VALUES(?,?, 'Activa')");
+            $q->execute([$idAlumno,$idGrupo]);
+            responder(['status'=>'success','message'=>'Te inscribiste al grupo correctamente.']);
+        }
+
+        if ($rol === 'Profesor') {
+            $q = $conexion->prepare('SELECT ID_Profesor FROM PROFESOR WHERE ID_Usuario=? LIMIT 1');
+            $q->execute([$uid]);
+            $idProfesor = (int)($q->fetchColumn() ?: 0);
+            if (!$idProfesor) responder(['status'=>'error','message'=>'No se encontró el profesor asociado.'],403);
+
+            // El profesor solamente puede inscribirse en grupos de disciplinas que enseña.
+            if (empty($grupo['ID_Disciplina'])) {
+                responder(['status'=>'error','message'=>'Este grupo todavía no tiene una disciplina asignada.']);
+            }
+
+            $q = $conexion->prepare('SELECT 1 FROM PROFESOR_DISCIPLINA WHERE ID_Profesor=? AND ID_Disciplina=?');
+            $q->execute([$idProfesor,(int)$grupo['ID_Disciplina']]);
+            if (!$q->fetch()) {
+                responder(['status'=>'error','message'=>'Primero debes seleccionar esta disciplina como una de las que enseñas.']);
+            }
+
+            $q = $conexion->prepare('SELECT ID_Inscripcion FROM INSCRIPCION_GRUPO_PROFESOR WHERE ID_Profesor=? AND ID_Grupo=? LIMIT 1');
+            $q->execute([$idProfesor,$idGrupo]);
+            if ($q->fetch()) responder(['status'=>'error','message'=>'Ya estás inscrito en este grupo.']);
+
+            $q = $conexion->prepare("INSERT INTO INSCRIPCION_GRUPO_PROFESOR(ID_Profesor,ID_Grupo,Estado) VALUES(?,?, 'Activa')");
+            $q->execute([$idProfesor,$idGrupo]);
+            responder(['status'=>'success','message'=>'Te inscribiste al grupo como profesor.']);
+        }
+
+        responder(['status'=>'error','message'=>'Tu rol no permite inscribirse en grupos.'],403);
+    }
+
+    if ($accion === 'cancelar_inscripcion') {
+        $idGrupo = (int)($_POST['id_grupo'] ?? 0);
+        $uid = (int)$_SESSION['usuario_id'];
+
+        if ($rol === 'Alumno') {
+            $q = $conexion->prepare('SELECT ID_Alumno FROM ALUMNO WHERE ID_Usuario=? LIMIT 1');
+            $q->execute([$uid]);
+            $idAlumno = (int)($q->fetchColumn() ?: 0);
+            $q = $conexion->prepare('DELETE FROM INSCRIPCION_GRUPO_ALUMNO WHERE ID_Alumno=? AND ID_Grupo=?');
+            $q->execute([$idAlumno,$idGrupo]);
+        } elseif ($rol === 'Profesor') {
+            $q = $conexion->prepare('SELECT ID_Profesor FROM PROFESOR WHERE ID_Usuario=? LIMIT 1');
+            $q->execute([$uid]);
+            $idProfesor = (int)($q->fetchColumn() ?: 0);
+            $q = $conexion->prepare('DELETE FROM INSCRIPCION_GRUPO_PROFESOR WHERE ID_Profesor=? AND ID_Grupo=?');
+            $q->execute([$idProfesor,$idGrupo]);
+        } else {
+            responder(['status'=>'error','message'=>'No autorizado.'],403);
+        }
+
+        responder(['status'=>'success','message'=>'Inscripción cancelada.']);
+    }
+
+    // --------------------------------------------------------
+    // Administración de grupos.
+    // --------------------------------------------------------
+    if ($rol !== 'Administrador') {
+        responder(['status'=>'error','message'=>'Solo el administrador puede realizar esta acción.'],403);
+    }
+
+    $id = (int)($_POST['id'] ?? 0);
+
+    if ($accion === 'eliminar') {
+        if ($id <= 0) responder(['status'=>'error','message'=>'ID no válido.']);
+        $q = $conexion->prepare('DELETE FROM GRUPO WHERE ID_Grupo=?');
+        $q->execute([$id]);
+        responder(['status'=>'success','message'=>'Grupo eliminado correctamente.']);
+    }
+
+    $nombre = trim($_POST['nombre'] ?? '');
+    $nivel = trim($_POST['nivel'] ?? '');
+    $descripcion = trim($_POST['descripcion'] ?? '');
+    $cupo = max(1, (int)($_POST['cupo_maximo'] ?? 20));
+    $idDisciplina = (int)($_POST['id_disciplina'] ?? 0);
+
+    if ($nombre === '' || $descripcion === '' || !in_array($nivel,$nivelesPermitidos,true)) {
+        responder(['status'=>'error','message'=>'Complete correctamente los datos del grupo.']);
+    }
+
+    if ($idDisciplina <= 0) responder(['status'=>'error','message'=>'Seleccione una disciplina para el grupo.']);
+
+    $q = $conexion->prepare('SELECT ID_Disciplina FROM DISCIPLINA WHERE ID_Disciplina=?');
+    $q->execute([$idDisciplina]);
+    if (!$q->fetch()) responder(['status'=>'error','message'=>'La disciplina seleccionada no existe.']);
+
+    if ($accion === 'editar') {
+        if ($id <= 0) responder(['status'=>'error','message'=>'ID no válido.']);
+        $q = $conexion->prepare('UPDATE GRUPO SET Nombre=?, ID_Disciplina=?, Cupo_maximo=?, Nivel=?, Descripcion=? WHERE ID_Grupo=?');
+        $q->execute([$nombre,$idDisciplina,$cupo,$nivel,$descripcion,$id]);
+        responder(['status'=>'success','message'=>'Grupo actualizado correctamente.']);
+    }
+
+    $q = $conexion->prepare('INSERT INTO GRUPO(Nombre,ID_Disciplina,Cupo_maximo,Nivel,Descripcion) VALUES(?,?,?,?,?)');
+    $q->execute([$nombre,$idDisciplina,$cupo,$nivel,$descripcion]);
+    responder(['status'=>'success','message'=>'Grupo creado correctamente.']);
+} catch (Throwable $e) {
+    error_log('Error en api/grupos.php: '.$e->getMessage());
+    responder(['status'=>'error','message'=>'Hubo un problema en el servidor.'],500);
+}
