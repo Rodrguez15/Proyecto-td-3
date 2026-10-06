@@ -1,0 +1,104 @@
+// ============================================================
+// PORTAL DEL PROFESOR
+// ============================================================
+
+const API_PROFESOR = 'api/profesor_portal.php';
+
+function escapar(texto) {
+    return String(texto ?? '').replace(/[&<>"']/g, (caracter) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[caracter]));
+}
+
+async function cargarPortalProfesor() {
+    const respuesta = await fetch(`${API_PROFESOR}?accion=datos`);
+    const data = await respuesta.json();
+
+    if (data.status !== 'success') {
+        mostrarMensajeProfesor(data.message || 'No se pudo cargar el portal.', true);
+        return;
+    }
+
+    renderizarDisciplinas(data.disciplinas || []);
+    renderizarGrupos(data.grupos || []);
+}
+
+function renderizarDisciplinas(disciplinas) {
+    const contenedor = document.getElementById('listaDisciplinasProfesor');
+
+    if (!disciplinas.length) {
+        contenedor.innerHTML = '<p>No hay disciplinas registradas. El administrador debe crear las disciplinas primero.</p>';
+        return;
+    }
+
+    contenedor.innerHTML = disciplinas.map((disciplina) => `
+        <label class="card professor-discipline-option">
+            <input
+                type="checkbox"
+                name="disciplinasProfesor"
+                value="${disciplina.ID_Disciplina}"
+                ${Number(disciplina.Seleccionada) === 1 ? 'checked' : ''}
+            >
+            <strong>${escapar(disciplina.Nombre)}</strong>
+            <span>${escapar(disciplina.Descripcion || 'Sin descripción')}</span>
+        </label>
+    `).join('');
+}
+
+function renderizarGrupos(grupos) {
+    const contenedor = document.getElementById('listaGruposProfesor');
+
+    if (!grupos.length) {
+        contenedor.innerHTML = '<p>Aún no tienes grupos asociados a las disciplinas seleccionadas.</p>';
+        return;
+    }
+
+    contenedor.innerHTML = grupos.map((grupo) => `
+        <article class="card">
+            <h3>${escapar(grupo.Nombre)}</h3>
+            <p><strong>Disciplina:</strong> ${escapar(grupo.Disciplina || 'Sin disciplina')}</p>
+            <p><strong>Nivel:</strong> ${escapar(grupo.Nivel || 'No definido')}</p>
+            <p><strong>Cupo máximo:</strong> ${escapar(grupo.Cupo_maximo)}</p>
+            <p>${escapar(grupo.Descripcion || 'Sin descripción')}</p>
+        </article>
+    `).join('');
+}
+
+function mostrarMensajeProfesor(texto, error = false) {
+    const elemento = document.getElementById('mensajeProfesorPortal');
+    elemento.className = error ? 'error' : 'success';
+    elemento.textContent = texto;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    cargarPortalProfesor().catch(() => {
+        mostrarMensajeProfesor('Error de comunicación con el servidor.', true);
+    });
+
+    document.getElementById('btnGuardarDisciplinasProfesor').addEventListener('click', async () => {
+        const seleccionadas = [...document.querySelectorAll('input[name="disciplinasProfesor"]:checked')]
+            .map((input) => input.value);
+
+        const formData = new FormData();
+        seleccionadas.forEach((id) => formData.append('disciplinas[]', id));
+
+        try {
+            const respuesta = await fetch(`${API_PROFESOR}?accion=guardar_disciplinas`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await respuesta.json();
+
+            mostrarMensajeProfesor(
+                data.message || 'Selección actualizada.',
+                data.status !== 'success'
+            );
+
+            if (data.status === 'success') {
+                await cargarPortalProfesor();
+            }
+        } catch (error) {
+            mostrarMensajeProfesor('Error de comunicación con el servidor.', true);
+        }
+    });
+});
