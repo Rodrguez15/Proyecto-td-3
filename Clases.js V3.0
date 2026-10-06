@@ -1,0 +1,252 @@
+// Módulo de clases y disciplinas.
+// Se ejecuta en el navegador y se comunica con PHP mediante fetch().
+
+document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('listaClases');
+    const msg = document.getElementById('mensajeClase');
+    const btn = document.getElementById('btnGuardarClase');
+
+    // Si existe el botón de guardar, estamos viendo la pantalla de administrador.
+    const admin = Boolean(btn);
+
+    // Muestra mensajes de éxito o error debajo del formulario.
+    const say = (text, error = false) => {
+        if (!msg) {
+            return;
+        }
+
+        msg.textContent = text;
+        msg.className = error ? 'error' : 'success';
+    };
+
+    // Escapa texto antes de colocarlo dentro de HTML.
+    const esc = (value) => String(value ?? '').replace(
+        /[&<>"']/g,
+        (match) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[match])
+    );
+
+    // Escapa valores que se envían dentro de atributos JavaScript.
+    const js = (value) => String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
+
+    // Dibuja las disciplinas recibidas desde la API.
+    function render(rows) {
+        box.innerHTML = '';
+
+        if (!rows.length) {
+            box.innerHTML =
+                '<p class="full-grid muted-center">No hay disciplinas o clases disponibles.</p>';
+            return;
+        }
+
+        rows.forEach((item) => {
+            const card = document.createElement('div');
+            card.className = 'member dynamic-card';
+
+            card.innerHTML = `
+                <h2>${esc(item.Nombre)}</h2>
+                <p>${esc(item.Descripcion || 'Sin descripción')}</p>
+                <p>
+                    <strong>Costo:</strong>
+                    $ ${Number(item.Costo || 0).toFixed(2)}
+                </p>
+            `;
+
+            // Los alumnos pueden inscribirse en la disciplina.
+            if (!admin) {
+                const button = document.createElement('button');
+                const inscrito = Number(item.Inscrito) === 1;
+
+                button.textContent = inscrito
+                    ? 'Ya estás inscrito'
+                    : 'Inscribirme';
+                button.disabled = inscrito;
+
+                button.onclick = () => {
+                    const form = new FormData();
+                    form.append('id_disciplina', item.ID_Disciplina);
+
+                    fetch('api/inscripciones.php', {
+                        method: 'POST',
+                        body: form
+                    })
+                        .then((response) => response.json())
+                        .then((data) => {
+                            say(data.message, data.status !== 'success');
+
+                            if (data.status === 'success') {
+                                load();
+                            }
+                        })
+                        .catch(() => {
+                            say('Error en la comunicación con el servidor.', true);
+                        });
+                };
+
+                card.appendChild(button);
+            } else {
+                // Los administradores tienen botones de edición y eliminación.
+                const actions = document.createElement('div');
+
+                actions.innerHTML = `
+                    <button
+                        onclick="editarDisciplina(
+                            ${item.ID_Disciplina},
+                            '${js(item.Nombre)}',
+                            '${js(item.Descripcion || '')}',
+                            ${Number(item.Costo || 0)}
+                        )"
+                    >
+                        Editar
+                    </button>
+
+                    <button
+                        class="danger"
+                        onclick="eliminarDisciplina(${item.ID_Disciplina})"
+                    >
+                        Eliminar
+                    </button>
+                `;
+
+                card.appendChild(actions);
+            }
+
+            box.appendChild(card);
+        });
+    }
+
+    // Consulta las disciplinas disponibles.
+    function load() {
+        const url = admin
+            ? 'api/clases.php'
+            : 'api/inscripciones.php';
+
+        fetch(url)
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.status !== 'success') {
+                    say(data.message, true);
+                    return;
+                }
+
+                render(data.clases);
+            })
+            .catch(() => {
+                say('Error en la comunicación con el servidor.', true);
+            });
+    }
+
+    // Guarda una nueva disciplina cuando el administrador pulsa el botón.
+    if (btn) {
+        btn.onclick = () => {
+            const form = new FormData();
+
+            form.append(
+                'nombre',
+                document.getElementById('nombreClase').value.trim()
+            );
+            form.append(
+                'descripcion',
+                document.getElementById('descripcionClase')?.value.trim() || ''
+            );
+            form.append(
+                'costo',
+                document.getElementById('costoClase')?.value || 0
+            );
+
+            fetch('api/clases.php', {
+                method: 'POST',
+                body: form
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    say(data.message, data.status !== 'success');
+
+                    if (data.status === 'success') {
+                        load();
+                    }
+                })
+                .catch(() => {
+                    say('Error en la comunicación con el servidor.', true);
+                });
+        };
+    }
+
+    // Abre pequeños formularios para modificar una disciplina.
+    window.editarDisciplina = (id, nombre, descripcion, costo) => {
+        const nuevoNombre = prompt('Nombre:', nombre);
+        if (nuevoNombre === null) {
+            return;
+        }
+
+        const nuevaDescripcion = prompt('Descripción:', descripcion);
+        if (nuevaDescripcion === null) {
+            return;
+        }
+
+        const nuevoCosto = prompt('Costo:', costo);
+        if (nuevoCosto === null) {
+            return;
+        }
+
+        const form = new FormData();
+        form.append('accion', 'editar');
+        form.append('id', id);
+        form.append('nombre', nuevoNombre);
+        form.append('descripcion', nuevaDescripcion);
+        form.append('costo', nuevoCosto);
+
+        fetch('api/clases.php', {
+            method: 'POST',
+            body: form
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                say(data.message, data.status !== 'success');
+
+                if (data.status === 'success') {
+                    load();
+                }
+            })
+            .catch(() => {
+                say('Error en la comunicación con el servidor.', true);
+            });
+    };
+
+    // Elimina una disciplina después de pedir confirmación.
+    window.eliminarDisciplina = (id) => {
+        if (!confirm('¿Eliminar esta disciplina?')) {
+            return;
+        }
+
+        const form = new FormData();
+        form.append('accion', 'eliminar');
+        form.append('id', id);
+
+        fetch('api/clases.php', {
+            method: 'POST',
+            body: form
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                say(data.message, data.status !== 'success');
+
+                if (data.status === 'success') {
+                    load();
+                }
+            })
+            .catch(() => {
+                say('Error en la comunicación con el servidor.', true);
+            });
+    };
+
+    // Carga inicial.
+    load();
+});
