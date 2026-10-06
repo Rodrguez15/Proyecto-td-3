@@ -1,0 +1,57 @@
+// Módulo "Mis clases".
+// Consulta las disciplinas en las que está inscrito el alumno.
+
+document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('misClases');
+    const msg = document.getElementById('mensajeMisClases');
+
+    // Escapa texto para evitar insertar HTML no deseado.
+    function esc(value) {
+        return String(value ?? '').replace(
+            /[&<>"']/g,
+            (match) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[match])
+        );
+    }
+
+    // Solicita al servidor las clases del alumno autenticado.
+    fetch('api/mis_clases.php')
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.status !== 'success') {
+                msg.textContent = data.message;
+                return;
+            }
+
+            if (!data.clases.length) {
+                box.innerHTML =
+                    '<p class="full-grid muted-center">Todavía no estás inscrito en ninguna clase.</p>';
+                return;
+            }
+
+            box.innerHTML = data.clases
+                .map((item) => `
+                    <div class="member dynamic-card compact">
+                        <h2>${esc(item.Nombre)}</h2>
+                        <p>${esc(item.Descripcion || 'Sin descripción')}</p>
+                        <p>
+                            <strong>Costo:</strong>
+                            $ ${Number(item.Costo || 0).toFixed(2)}
+                        </p>
+                        <p>
+                            <strong>Inscripción:</strong>
+                            ${esc(item.Fecha_ins)} — ${esc(item.Estado)}
+                        </p>
+                    </div>
+                `)
+                .join('');
+        })
+        .catch(() => {
+            msg.textContent = 'Error en la comunicación con el servidor.';
+        });
+});
