@@ -1,0 +1,36 @@
+-- ============================================================
+-- VILAMIR: INSCRIPCIONES A GRUPOS PARA ALUMNOS Y PROFESORES
+-- Ejecutar UNA VEZ sobre la base mma_systems.
+-- ============================================================
+USE mma_systems;
+
+-- Inscripciones de alumnos a grupos.
+CREATE TABLE IF NOT EXISTS INSCRIPCION_GRUPO_ALUMNO (
+    ID_Inscripcion INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Alumno INT NOT NULL,
+    ID_Grupo INT NOT NULL,
+    Fecha_inscripcion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Estado VARCHAR(40) NOT NULL DEFAULT 'Activa',
+    UNIQUE KEY uq_alumno_grupo (ID_Alumno, ID_Grupo),
+    CONSTRAINT fk_iga_alumno FOREIGN KEY (ID_Alumno)
+        REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE,
+    CONSTRAINT fk_iga_grupo FOREIGN KEY (ID_Grupo)
+        REFERENCES GRUPO(ID_Grupo) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Inscripciones/asignaciones de profesores a grupos.
+CREATE TABLE IF NOT EXISTS INSCRIPCION_GRUPO_PROFESOR (
+    ID_Inscripcion INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Profesor INT NOT NULL,
+    ID_Grupo INT NOT NULL,
+    Fecha_inscripcion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Estado VARCHAR(40) NOT NULL DEFAULT 'Activa',
+    UNIQUE KEY uq_profesor_grupo (ID_Profesor, ID_Grupo),
+    CONSTRAINT fk_igp_profesor FOREIGN KEY (ID_Profesor)
+        REFERENCES PROFESOR(ID_Profesor) ON DELETE CASCADE,
+    CONSTRAINT fk_igp_grupo FOREIGN KEY (ID_Grupo)
+        REFERENCES GRUPO(ID_Grupo) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Los grupos existentes necesitan un cupo para controlar alumnos.
+ALTER TABLE GRUPO ADD COLUMN IF NOT EXISTS Cupo_maximo INT NOT NULL DEFAULT 20 AFTER ID_Disciplina;
