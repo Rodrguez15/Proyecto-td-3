@@ -1,0 +1,294 @@
+<?php
+// Descripción: endpoint/configuración de admin. Gestiona la comunicación entre la interfaz y la base de datos.
+require_once dirname(__DIR__) . '/config/conexion.php';
+if (session_status() === PHP_SESSION_NONE) session_start();
+header('Content-Type: application/json; charset=utf-8');
+if (!isset($_SESSION['usuario_id']) || strcasecmp(trim((string)($_SESSION['usuario_rol'] ?? '')), 'Administrador') !== 0) {
+    http_response_code(403); echo json_encode(['status'=>'error','message'=>'Acceso exclusivo para administradores.']); exit;
+}
+
+// Envía una respuesta JSON y finaliza la ejecución del endpoint.
+function out($data, $code=200){ http_response_code($code); echo json_encode($data, JSON_UNESCAPED_UNICODE); exit; }
+function post($k,$default=''){ return trim((string)($_POST[$k] ?? $default)); }
+function validDate($v){ $d=DateTime::createFromFormat('Y-m-d',$v); return $d && $d->format('Y-m-d')===$v; }
+function id($k){ return max(0,(int)($_POST[$k] ?? 0)); }
+
+$entity = $_GET['entity'] ?? $_POST['entity'] ?? '';
+$method = $_SERVER['REQUEST_METHOD'];
+try {
+    // GET: consulta registros o estadísticas sin modificar la base de datos.
+    if ($method === 'GET') {
+        switch ($entity) {
+            case 'dashboard':
+                $tables=['ALUMNO'=>'alumnos','PROFESOR'=>'profesores','RESPONSABLE'=>'responsables','DISCIPLINA'=>'disciplinas','GRUPO'=>'grupos','HORARIO'=>'horarios','PAGO'=>'pagos','NOTIFICACION'=>'notificaciones','SEMINARIO'=>'seminarios','PROMOCION'=>'promociones','USUARIO'=>'usuarios'];
+                $counts=[]; foreach($tables as $t=>$key){ $counts[$key]=(int)$conexion->query("SELECT COUNT(*) FROM `$t`")->fetchColumn(); }
+                out(['status'=>'success','counts'=>$counts]);
+            case 'alumnos':
+                $s=$conexion->query("SELECT a.*,u.Email FROM ALUMNO a JOIN USUARIO u ON u.ID_Usuario=a.ID_Usuario ORDER BY a.Apellido,a.Nombre"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'profesores':
+                $s=$conexion->query("SELECT * FROM PROFESOR ORDER BY Apellido,Nombre"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'responsables':
+                $s=$conexion->query("SELECT r.*, CONCAT(a.Nombre,' ',a.Apellido) Alumno FROM RESPONSABLE r JOIN ALUMNO a ON a.ID_Alumno=r.ID_Alumno ORDER BY a.Apellido,a.Nombre,r.Apellido,r.Nombre"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'disciplinas':
+                $s=$conexion->query("SELECT * FROM DISCIPLINA ORDER BY Nombre"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'grupos':
+                $s=$conexion->query("SELECT * FROM GRUPO ORDER BY Nombre"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'horarios':
+                $s=$conexion->query("SELECT * FROM HORARIO ORDER BY FIELD(Dia,'Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'),Hora_inicio"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'pagos':
+                $s=$conexion->query("SELECT p.*, CONCAT(a.Nombre,' ',a.Apellido) Alumno FROM PAGO p JOIN ALUMNO a ON a.ID_Alumno=p.ID_Alumno ORDER BY p.Fecha DESC,p.ID_Pago DESC"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'notificaciones':
+                $s=$conexion->query("SELECT n.*, CONCAT(a.Nombre,' ',a.Apellido) Alumno FROM NOTIFICACION n JOIN ALUMNO a ON a.ID_Alumno=n.ID_Alumno ORDER BY n.Fecha DESC,n.ID_Notificacion DESC"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'seminarios':
+                $s=$conexion->query("SELECT ID_Seminario,COALESCE(NULLIF(Nombre,''),Titulo) Nombre,Descripcion,Costo,Fecha FROM SEMINARIO ORDER BY Fecha DESC"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'promociones':
+                $s=$conexion->query("SELECT * FROM PROMOCION ORDER BY Nombre"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'usuarios':
+                $s=$conexion->query("SELECT ID_Usuario,Email,Rol,Creado_en FROM USUARIO ORDER BY Email"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'inscripciones_disciplina':
+                $s=$conexion->query("SELECT i.*,CONCAT(a.Nombre,' ',a.Apellido) Alumno,d.Nombre Disciplina FROM INSCRIPCION_DISCIPLINA i JOIN ALUMNO a ON a.ID_Alumno=i.ID_Alumno JOIN DISCIPLINA d ON d.ID_Disciplina=i.ID_Disciplina ORDER BY i.Fecha_ins DESC"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            case 'inscripciones_seminario':
+                $s=$conexion->query("SELECT i.*,CONCAT(a.Nombre,' ',a.Apellido) Alumno,s.Nombre Seminario FROM INSCRIPCION_SEMINARIO i JOIN ALUMNO a ON a.ID_Alumno=i.ID_Alumno JOIN SEMINARIO s ON s.ID_Seminario=i.ID_Seminario ORDER BY i.Fecha_ins DESC"); out(['status'=>'success','rows'=>$s->fetchAll()]);
+            default: out(['status'=>'error','message'=>'Módulo no válido.'],400);
+        }
+    }
+
+    // Solo POST puede crear, editar o eliminar registros.
+    if ($method !== 'POST') out(['status'=>'error','message'=>'Método no permitido.'],405);
+    $action=post('accion','crear'); $itemId=id('id');
+
+    // ALUMNOS: crea, edita y elimina usuarios con rol Alumno y su ficha personal.
+    if ($entity==='alumnos') {
+        $nombre=post('nombre');$apellido=post('apellido');$fecha=post('fecha_nacimiento');$direccion=post('direccion');$telefono=post('telefono');$cobertura=post('cobertura_medica');$email=strtolower(post('email'));$password=post('password');
+        if($action==='eliminar'){ $s=$conexion->prepare("SELECT ID_Usuario FROM ALUMNO WHERE ID_Alumno=?");$s->execute([$itemId]);$u=$s->fetchColumn();if(!$u)out(['status'=>'error','message'=>'Alumno no encontrado.'],404);$s=$conexion->prepare("DELETE FROM USUARIO WHERE ID_Usuario=?");$s->execute([$u]);out(['status'=>'success','message'=>'Alumno eliminado.']); }
+        if(!$nombre||!$apellido||!filter_var($email,FILTER_VALIDATE_EMAIL))out(['status'=>'error','message'=>'Nombre, apellido y correo son obligatorios.'],400);
+        if($action==='editar'){
+            $s=$conexion->prepare("SELECT ID_Usuario FROM ALUMNO WHERE ID_Alumno=?");$s->execute([$itemId]);$uid=$s->fetchColumn();if(!$uid)out(['status'=>'error','message'=>'Alumno no encontrado.'],404);
+            $conexion->prepare("UPDATE USUARIO SET Email=? WHERE ID_Usuario=?")->execute([$email,$uid]);
+            $conexion->prepare("UPDATE ALUMNO SET Nombre=?,Apellido=?,Fecha_nacimiento=NULLIF(?,''),Direccion=?,Telefono=?,Cobertura_medica=? WHERE ID_Alumno=?")->execute([$nombre,$apellido,$fecha,$direccion,$telefono,$cobertura,$itemId]);
+            if($password!=='')$conexion->prepare("UPDATE USUARIO SET Contraseña=? WHERE ID_Usuario=?")->execute([password_hash($password,PASSWORD_DEFAULT),$uid]);
+            out(['status'=>'success','message'=>'Alumno actualizado.']);
+        }
+        if(!$password)$password='Alumno123!';
+        $conexion->beginTransaction();
+        try{$s=$conexion->prepare("INSERT INTO USUARIO(Email,Contraseña,Rol) VALUES(?,?, 'Alumno')");$s->execute([$email,password_hash($password,PASSWORD_DEFAULT)]);$uid=$conexion->lastInsertId();$s=$conexion->prepare("INSERT INTO ALUMNO(ID_Usuario,Nombre,Apellido,Fecha_nacimiento,Direccion,Telefono,Cobertura_medica) VALUES(?,?,?,NULLIF(?,''),?,?,?)");$s->execute([$uid,$nombre,$apellido,$fecha,$direccion,$telefono,$cobertura]);$conexion->commit();out(['status'=>'success','message'=>'Alumno creado. Contraseña inicial: '.$password]);}catch(Throwable $e){$conexion->rollBack();throw $e;}
+    }
+
+    // PROFESORES: administra el cuerpo docente y su cuenta de acceso.
+    if ($entity === 'profesores') {
+        $nombre = post('nombre');
+        $apellido = post('apellido');
+        $telefono = post('telefono');
+        $cedula = post('cedula');
+        $direccion = post('direccion');
+        $especialidad = post('especialidad');
+        $email = strtolower(post('email'));
+        $password = post('password');
+
+        if ($action === 'eliminar') {
+            $consulta = $conexion->prepare('SELECT ID_Usuario FROM PROFESOR WHERE ID_Profesor=?');
+            $consulta->execute([$itemId]);
+            $idUsuario = $consulta->fetchColumn();
+            if ($idUsuario) {
+                $conexion->prepare('DELETE FROM USUARIO WHERE ID_Usuario=?')->execute([$idUsuario]);
+            } else {
+                $conexion->prepare('DELETE FROM PROFESOR WHERE ID_Profesor=?')->execute([$itemId]);
+            }
+            out(['status' => 'success', 'message' => 'Profesor eliminado.']);
+        }
+
+        if ($nombre === '' || $apellido === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            out(['status' => 'error', 'message' => 'Nombre, apellido y correo válido son obligatorios.'], 400);
+        }
+
+        if ($action === 'editar') {
+            $consulta = $conexion->prepare('SELECT ID_Usuario FROM PROFESOR WHERE ID_Profesor=?');
+            $consulta->execute([$itemId]);
+            $idUsuario = $consulta->fetchColumn();
+
+            $conexion->beginTransaction();
+            try {
+                if ($idUsuario) {
+                    $conexion->prepare('UPDATE USUARIO SET Email=? WHERE ID_Usuario=?')->execute([$email,$idUsuario]);
+                    if ($password !== '') {
+                        $conexion->prepare('UPDATE USUARIO SET Contraseña=? WHERE ID_Usuario=?')
+                            ->execute([password_hash($password,PASSWORD_DEFAULT),$idUsuario]);
+                    }
+                } else {
+                    $clave = $password !== '' ? $password : 'Profesor123!';
+                    $conexion->prepare("INSERT INTO USUARIO(Email,Contraseña,Rol) VALUES(?,?,'Profesor')")
+                        ->execute([$email,password_hash($clave,PASSWORD_DEFAULT)]);
+                    $idUsuario = $conexion->lastInsertId();
+                    $password = $clave;
+                }
+
+                $conexion->prepare("UPDATE PROFESOR SET ID_Usuario=?,Nombre=?,Apellido=?,Telefono=?,Cedula=?,Direccion=?,Especialidad=?,Email=? WHERE ID_Profesor=?")
+                    ->execute([$idUsuario,$nombre,$apellido,$telefono,$cedula,$direccion,$especialidad,$email,$itemId]);
+                $conexion->commit();
+                $mensaje = 'Profesor actualizado y cuenta de acceso sincronizada.';
+                if ($password !== '') { $mensaje .= ' Contraseña: '.$password; }
+                out(['status'=>'success','message'=>$mensaje]);
+            } catch (Throwable $e) {
+                $conexion->rollBack();
+                throw $e;
+            }
+        }
+
+        $clave = $password !== '' ? $password : 'Profesor123!';
+        $conexion->beginTransaction();
+        try {
+            $conexion->prepare("INSERT INTO USUARIO(Email,Contraseña,Rol) VALUES(?,?,'Profesor')")
+                ->execute([$email,password_hash($clave,PASSWORD_DEFAULT)]);
+            $idUsuario = $conexion->lastInsertId();
+            $conexion->prepare("INSERT INTO PROFESOR(ID_Usuario,Nombre,Apellido,Telefono,Cedula,Direccion,Especialidad,Email) VALUES(?,?,?,?,?,?,?,?)")
+                ->execute([$idUsuario,$nombre,$apellido,$telefono,$cedula,$direccion,$especialidad,$email]);
+            $conexion->commit();
+            out(['status'=>'success','message'=>'Profesor creado. Usuario: '.$email.' | Contraseña: '.$clave]);
+        } catch (Throwable $e) {
+            $conexion->rollBack();
+            throw $e;
+        }
+    }
+
+    // RESPONSABLES: adultos a cargo de alumnos menores.
+    if ($entity === 'responsables') {
+        $idAlumno = id('id_alumno');
+        $nombre = post('nombre');
+        $apellido = post('apellido');
+        $parentesco = post('parentesco');
+        $cedula = post('cedula');
+        $telefono = post('telefono');
+        $direccion = post('direccion');
+
+        if ($action === 'eliminar') {
+            $consulta = $conexion->prepare('DELETE FROM RESPONSABLE WHERE ID_Responsable = ?');
+            $consulta->execute([$itemId]);
+            out(['status' => 'success', 'message' => 'Responsable eliminado.']);
+        }
+
+        if (!$idAlumno || !$nombre || !$apellido || !$parentesco) {
+            out(['status' => 'error', 'message' => 'Alumno, nombre, apellido y parentesco son obligatorios.'], 400);
+        }
+
+        if ($action === 'editar') {
+            $consulta = $conexion->prepare(
+                'UPDATE RESPONSABLE
+                 SET ID_Alumno=?, Nombre=?, Apellido=?, Parentesco=?, Cedula=?, Telefono=?, Direccion=?
+                 WHERE ID_Responsable=?'
+            );
+            $consulta->execute([$idAlumno, $nombre, $apellido, $parentesco, $cedula, $telefono, $direccion, $itemId]);
+            out(['status' => 'success', 'message' => 'Responsable actualizado.']);
+        }
+
+        $consulta = $conexion->prepare(
+            'INSERT INTO RESPONSABLE (ID_Alumno, Nombre, Apellido, Parentesco, Cedula, Telefono, Direccion)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $consulta->execute([$idAlumno, $nombre, $apellido, $parentesco, $cedula, $telefono, $direccion]);
+        out(['status' => 'success', 'message' => 'Responsable creado.']);
+    }
+
+    // DISCIPLINAS: administra nombre, descripción y costo.
+    if ($entity==='disciplinas') {
+        $nombre=post('nombre');$desc=post('descripcion');$costo=(float)($_POST['costo']??0);
+        if($action==='eliminar'){$conexion->prepare("DELETE FROM DISCIPLINA WHERE ID_Disciplina=?")->execute([$itemId]);out(['status'=>'success','message'=>'Disciplina eliminada.']);}
+        if(!$nombre)out(['status'=>'error','message'=>'El nombre es obligatorio.'],400);
+        if($action==='editar'){$conexion->prepare("UPDATE DISCIPLINA SET Nombre=?,Descripcion=?,Costo=? WHERE ID_Disciplina=?")->execute([$nombre,$desc,$costo,$itemId]);out(['status'=>'success','message'=>'Disciplina actualizada.']);}
+        $conexion->prepare("INSERT INTO DISCIPLINA(Nombre,Descripcion,Costo) VALUES(?,?,?)")->execute([$nombre,$desc,$costo]);out(['status'=>'success','message'=>'Disciplina creada.']);
+    }
+
+    // GRUPOS: administra nombre y cupo máximo.
+    if ($entity==='grupos') {
+        $nombre=post('nombre');
+        $cupo=max(1,(int)($_POST['cupo_maximo']??1));
+        $disciplina=id('id_disciplina');
+        $disciplina = $disciplina > 0 ? $disciplina : null;
+
+        if($action==='eliminar'){
+            $conexion->prepare("DELETE FROM GRUPO WHERE ID_Grupo=?")->execute([$itemId]);
+            out(['status'=>'success','message'=>'Grupo eliminado.']);
+        }
+
+        if(!$nombre)out(['status'=>'error','message'=>'El nombre es obligatorio.'],400);
+
+        if($action==='editar'){
+            $conexion->prepare("UPDATE GRUPO SET Nombre=?,ID_Disciplina=?,Cupo_maximo=? WHERE ID_Grupo=?")
+                ->execute([$nombre,$disciplina,$cupo,$itemId]);
+            out(['status'=>'success','message'=>'Grupo actualizado.']);
+        }
+
+        $conexion->prepare("INSERT INTO GRUPO(Nombre,ID_Disciplina,Cupo_maximo) VALUES(?,?,?)")
+            ->execute([$nombre,$disciplina,$cupo]);
+        out(['status'=>'success','message'=>'Grupo creado.']);
+    }
+
+    // HORARIOS: administra día y rango horario.
+    if ($entity==='horarios') {
+        $dia=post('dia');$ini=post('hora_inicio');$fin=post('hora_fin');
+        if($action==='eliminar'){$conexion->prepare("DELETE FROM HORARIO WHERE ID_Horario=?")->execute([$itemId]);out(['status'=>'success','message'=>'Horario eliminado.']);}
+        if(!$dia||!$ini||!$fin)out(['status'=>'error','message'=>'Complete día y horas.'],400);
+        if($action==='editar'){$conexion->prepare("UPDATE HORARIO SET Dia=?,Hora_inicio=?,Hora_fin=? WHERE ID_Horario=?")->execute([$dia,$ini,$fin,$itemId]);out(['status'=>'success','message'=>'Horario actualizado.']);}
+        $conexion->prepare("INSERT INTO HORARIO(Dia,Hora_inicio,Hora_fin) VALUES(?,?,?)")->execute([$dia,$ini,$fin]);out(['status'=>'success','message'=>'Horario creado.']);
+    }
+
+    // PAGOS: registra importes, estados y métodos de pago de cada alumno.
+    if ($entity==='pagos') {
+        $alumno=id('id_alumno');$tipo=post('tipo');$fecha=post('fecha');$importe=(float)($_POST['importe']??0);$estado=post('estado','Pendiente');$metodo=post('metodo_pago');
+        if($action==='eliminar'){$conexion->prepare("DELETE FROM PAGO WHERE ID_Pago=?")->execute([$itemId]);out(['status'=>'success','message'=>'Pago eliminado.']);}
+        if(!$alumno||!validDate($fecha)||$importe<0)out(['status'=>'error','message'=>'Datos del pago no válidos.'],400);
+        if($action==='editar'){$conexion->prepare("UPDATE PAGO SET ID_Alumno=?,Tipo=?,Fecha=?,Importe=?,Estado=?,Metodo_pago=? WHERE ID_Pago=?")->execute([$alumno,$tipo,$fecha,$importe,$estado,$metodo,$itemId]);out(['status'=>'success','message'=>'Pago actualizado.']);}
+        $conexion->prepare("INSERT INTO PAGO(ID_Alumno,Tipo,Fecha,Importe,Estado,Metodo_pago) VALUES(?,?,?,?,?,?)")->execute([$alumno,$tipo,$fecha,$importe,$estado,$metodo]);out(['status'=>'success','message'=>'Pago registrado.']);
+    }
+
+    // NOTIFICACIONES: almacena mensajes dirigidos a alumnos.
+    if ($entity==='notificaciones') {
+        $alumno=id('id_alumno');$estado=post('estado','Pendiente');$mensaje=post('mensaje');$fecha=post('fecha');
+        if($action==='eliminar'){$conexion->prepare("DELETE FROM NOTIFICACION WHERE ID_Notificacion=?")->execute([$itemId]);out(['status'=>'success','message'=>'Notificación eliminada.']);}
+        if(!$alumno||!$mensaje||!validDate($fecha))out(['status'=>'error','message'=>'Complete los datos de la notificación.'],400);
+        if($action==='editar'){$conexion->prepare("UPDATE NOTIFICACION SET ID_Alumno=?,Estado=?,Mensaje=?,Fecha=? WHERE ID_Notificacion=?")->execute([$alumno,$estado,$mensaje,$fecha,$itemId]);out(['status'=>'success','message'=>'Notificación actualizada.']);}
+        $conexion->prepare("INSERT INTO NOTIFICACION(ID_Alumno,Estado,Mensaje,Fecha) VALUES(?,?,?,?)")->execute([$alumno,$estado,$mensaje,$fecha]);out(['status'=>'success','message'=>'Notificación creada.']);
+    }
+
+    // SEMINARIOS: administra actividades y eventos.
+    if ($entity==='seminarios') {
+        $nombre=post('nombre');$desc=post('descripcion');$costo=(float)($_POST['costo']??0);$fecha=post('fecha');
+        if($action==='eliminar'){$conexion->prepare("DELETE FROM SEMINARIO WHERE ID_Seminario=?")->execute([$itemId]);out(['status'=>'success','message'=>'Seminario/evento eliminado.']);}
+        if(!$nombre||!validDate($fecha))out(['status'=>'error','message'=>'Nombre y fecha son obligatorios.'],400);
+        if($action==='editar'){$conexion->prepare("UPDATE SEMINARIO SET Nombre=?,Descripcion=?,Costo=?,Fecha=?,Titulo=? WHERE ID_Seminario=?")->execute([$nombre,$desc,$costo,$fecha,$nombre,$itemId]);out(['status'=>'success','message'=>'Seminario/evento actualizado.']);}
+        $conexion->prepare("INSERT INTO SEMINARIO(Nombre,Descripcion,Costo,Fecha,Titulo,Ponente) VALUES(?,?,?,?,?,?)")->execute([$nombre,$desc,$costo,$fecha,$nombre,'Por confirmar']);out(['status'=>'success','message'=>'Seminario/evento creado.']);
+    }
+
+    // PROMOCIONES: administra descuentos disponibles.
+    if ($entity==='promociones') {
+        $nombre=post('nombre');$desc=post('descripcion');$descuento=(float)($_POST['descuento']??0);
+        if($action==='eliminar'){$conexion->prepare("DELETE FROM PROMOCION WHERE ID_Promocion=?")->execute([$itemId]);out(['status'=>'success','message'=>'Promoción eliminada.']);}
+        if(!$nombre||$descuento<0||$descuento>100)out(['status'=>'error','message'=>'Datos de promoción no válidos.'],400);
+        if($action==='editar'){$conexion->prepare("UPDATE PROMOCION SET Nombre=?,Descripcion=?,Descuento=? WHERE ID_Promocion=?")->execute([$nombre,$desc,$descuento,$itemId]);out(['status'=>'success','message'=>'Promoción actualizada.']);}
+        $conexion->prepare("INSERT INTO PROMOCION(Nombre,Descripcion,Descuento) VALUES(?,?,?)")->execute([$nombre,$desc,$descuento]);out(['status'=>'success','message'=>'Promoción creada.']);
+    }
+
+    // USUARIOS: permite administrar correos, contraseñas y roles.
+    if ($entity==='usuarios') {
+        $email=strtolower(post('email'));$rol=post('rol','Alumno');$password=post('password');
+        if($action==='eliminar'){if($itemId===(int)$_SESSION['usuario_id'])out(['status'=>'error','message'=>'No puedes eliminar tu propia cuenta.'],400);$conexion->prepare("DELETE FROM USUARIO WHERE ID_Usuario=?")->execute([$itemId]);out(['status'=>'success','message'=>'Usuario eliminado.']);}
+        if(!filter_var($email,FILTER_VALIDATE_EMAIL)||!in_array($rol,['Administrador','Alumno','Profesor'],true))out(['status'=>'error','message'=>'Datos de usuario no válidos.'],400);
+        if($action==='editar'){ $q="UPDATE USUARIO SET Email=?,Rol=?";$args=[$email,$rol];if($password!==''){$q.=',Contraseña=?';$args[]=password_hash($password,PASSWORD_DEFAULT);}$q.=' WHERE ID_Usuario=?';$args[]=$itemId;$conexion->prepare($q)->execute($args);out(['status'=>'success','message'=>'Usuario actualizado.']); }
+        if(!$password)$password='Usuario123!';$conexion->prepare("INSERT INTO USUARIO(Email,Contraseña,Rol) VALUES(?,?,?)")->execute([$email,password_hash($password,PASSWORD_DEFAULT),$rol]);out(['status'=>'success','message'=>'Usuario creado. Contraseña inicial: '.$password]);
+    }
+
+    // INSCRIPCIONES: relacionan alumnos con disciplinas o seminarios.
+    if ($entity==='inscripciones_disciplina' || $entity==='inscripciones_seminario') {
+        $table=$entity==='inscripciones_disciplina'?'INSCRIPCION_DISCIPLINA':'INSCRIPCION_SEMINARIO';
+        if($action==='eliminar'){$conexion->prepare("DELETE FROM $table WHERE ".($entity==='inscripciones_disciplina'?'ID_Ins_disciplina':'ID_Ins_seminario')."=?")->execute([$itemId]);out(['status'=>'success','message'=>'Inscripción eliminada.']);}
+        $alumno=id('id_alumno');$recurso=id($entity==='inscripciones_disciplina'?'id_disciplina':'id_seminario');$estado=post('estado','Activa');$fecha=post('fecha');
+        if(!$alumno||!$recurso||!validDate($fecha))out(['status'=>'error','message'=>'Datos de inscripción no válidos.'],400);
+        if($entity==='inscripciones_disciplina'){$conexion->prepare("INSERT INTO INSCRIPCION_DISCIPLINA(ID_Alumno,ID_Disciplina,Fecha_ins,Estado) VALUES(?,?,?,?)")->execute([$alumno,$recurso,$fecha,$estado]);}
+        else{$conexion->prepare("INSERT INTO INSCRIPCION_SEMINARIO(ID_Alumno,ID_Seminario,Fecha_ins,Estado) VALUES(?,?,?,?)")->execute([$alumno,$recurso,$fecha,$estado]);}
+        out(['status'=>'success','message'=>'Inscripción creada.']);
+    }
+    out(['status'=>'error','message'=>'Módulo no válido.'],400);
+} catch (Throwable $e) {
+    // No se expone el detalle SQL al navegador; se registra en el log del servidor.
+    error_log('API admin: '.$e->getMessage());
+    out(['status'=>'error','message'=>'No se pudo completar la operación. Verifique datos únicos y relaciones existentes.'],500);
+}
