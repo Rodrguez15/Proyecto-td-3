@@ -1,0 +1,94 @@
+<?php
+// API de responsables: conecta la interfaz con la tabla RESPONSABLE.
+require_once dirname(__DIR__) . '/config/conexion.php';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+header('Content-Type: application/json; charset=utf-8');
+
+// Solo el administrador puede gestionar responsables.
+if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] ?? '') !== 'Administrador') {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Acceso exclusivo para administradores.']);
+    exit;
+}
+
+function responder(array $datos, int $codigo = 200): void {
+    http_response_code($codigo);
+    echo json_encode($datos, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function dato(string $nombre): string {
+    return trim((string) ($_POST[$nombre] ?? ''));
+}
+
+try {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        // accion=alumnos devuelve los alumnos disponibles para asociar.
+        if (($_GET['accion'] ?? '') === 'alumnos') {
+            $consulta = $conexion->query(
+                "SELECT ID_Alumno, Nombre, Apellido FROM ALUMNO ORDER BY Apellido, Nombre"
+            );
+            responder(['status' => 'success', 'rows' => $consulta->fetchAll()]);
+        }
+
+        // Lista responsables junto con el nombre del alumno.
+        $consulta = $conexion->query(
+            "SELECT r.*, CONCAT(a.Nombre, ' ', a.Apellido) AS Alumno
+             FROM RESPONSABLE r
+             INNER JOIN ALUMNO a ON a.ID_Alumno = r.ID_Alumno
+             ORDER BY a.Apellido, a.Nombre, r.Apellido, r.Nombre"
+        );
+
+        responder(['status' => 'success', 'rows' => $consulta->fetchAll()]);
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        responder(['status' => 'error', 'message' => 'Método no permitido.'], 405);
+    }
+
+    $accion = dato('accion') ?: 'crear';
+    $id = (int) ($_POST['id'] ?? 0);
+
+    if ($accion === 'eliminar') {
+        $consulta = $conexion->prepare('DELETE FROM RESPONSABLE WHERE ID_Responsable = ?');
+        $consulta->execute([$id]);
+        responder(['status' => 'success', 'message' => 'Responsable eliminado correctamente.']);
+    }
+
+    $idAlumno = (int) ($_POST['id_alumno'] ?? 0);
+    $nombre = dato('nombre');
+    $apellido = dato('apellido');
+    $parentesco = dato('parentesco');
+    $cedula = dato('cedula');
+    $telefono = dato('telefono');
+    $direccion = dato('direccion');
+
+    if ($idAlumno <= 0 || $nombre === '' || $apellido === '' || $parentesco === '') {
+        responder(['status' => 'error', 'message' => 'Alumno, nombre, apellido y parentesco son obligatorios.'], 400);
+    }
+
+    if ($accion === 'editar') {
+        $consulta = $conexion->prepare(
+            'UPDATE RESPONSABLE
+             SET ID_Alumno = ?, Nombre = ?, Apellido = ?, Parentesco = ?, Cedula = ?, Telefono = ?, Direccion = ?
+             WHERE ID_Responsable = ?'
+        );
+        $consulta->execute([$idAlumno, $nombre, $apellido, $parentesco, $cedula, $telefono, $direccion, $id]);
+        responder(['status' => 'success', 'message' => 'Responsable actualizado correctamente.']);
+    }
+
+    $consulta = $conexion->prepare(
+        'INSERT INTO RESPONSABLE (ID_Alumno, Nombre, Apellido, Parentesco, Cedula, Telefono, Direccion)
+         VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    $consulta->execute([$idAlumno, $nombre, $apellido, $parentesco, $cedula, $telefono, $direccion]);
+
+    responder(['status' => 'success', 'message' => 'Responsable registrado correctamente.']);
+} catch (Throwable $e) {
+    error_log('API responsables: ' . $e->getMessage());
+    responder(['status' => 'error', 'message' => 'No se pudo completar la operación.'], 500);
+}
