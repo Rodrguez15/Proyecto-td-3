@@ -1,0 +1,65 @@
+<?php
+// Descripción: endpoint/configuración de profesores. Gestiona la comunicación entre la interfaz y la base de datos.
+// ============================================================
+// API PROFESORES - MMA SYSTEMS
+// GET  -> lista del cuerpo docente
+// POST -> registra un profesor
+// ============================================================
+require_once dirname(__DIR__) . '/config/conexion.php';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (!isset($_SESSION['usuario_id'])) {
+    http_response_code(401);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['status' => 'error', 'message' => 'No autorizado.']);
+    exit;
+}
+
+header('Content-Type: application/json; charset=utf-8');
+$rol = $_SESSION['usuario_rol'] ?? '';
+if ($rol !== 'Administrador') {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Solo el administrador puede acceder a este módulo.']);
+    exit;
+}
+$method = $_SERVER['REQUEST_METHOD'];
+
+try {
+    if ($method === 'GET') {
+        $stmt = $conexion->query(
+            "SELECT ID_Profesor, Nombre, Apellido, Especialidad, Email
+             FROM PROFESOR
+             ORDER BY Nombre ASC, Apellido ASC"
+        );
+        echo json_encode(['status' => 'success', 'profesores' => $stmt->fetchAll()]);
+        exit;
+
+    } elseif ($method === 'POST') {
+        $accion=$_POST['accion']??'crear'; $id=(int)($_POST['id']??0);
+        if($accion==='eliminar'){
+            $stmt=$conexion->prepare("DELETE FROM PROFESOR WHERE ID_Profesor=:id"); $stmt->execute([':id'=>$id]);
+            echo json_encode(['status'=>'success','message'=>'Profesor eliminado correctamente.']); exit;
+        }
+        $nombre=trim($_POST['nombre']??''); $apellido=trim($_POST['apellido']??''); $especialidad=trim($_POST['especialidad']??''); $email=trim($_POST['email']??'');
+        if($nombre===''||$apellido===''||$especialidad===''||!filter_var($email,FILTER_VALIDATE_EMAIL)){echo json_encode(['status'=>'error','message'=>'Complete todos los campos correctamente.']);exit;}
+        if($accion==='editar'){
+            $stmt=$conexion->prepare("SELECT ID_Profesor FROM PROFESOR WHERE Email=:email AND ID_Profesor<>:id LIMIT 1"); $stmt->execute([':email'=>$email,':id'=>$id]); if($stmt->fetch()){echo json_encode(['status'=>'error','message'=>'Ese correo ya está utilizado.']);exit;}
+            $stmt=$conexion->prepare("UPDATE PROFESOR SET Nombre=:nombre,Apellido=:apellido,Especialidad=:especialidad,Email=:email WHERE ID_Profesor=:id"); $stmt->execute([':nombre'=>$nombre,':apellido'=>$apellido,':especialidad'=>$especialidad,':email'=>$email,':id'=>$id]);
+            echo json_encode(['status'=>'success','message'=>'Profesor actualizado correctamente.']); exit;
+        }
+        $stmt=$conexion->prepare("SELECT ID_Profesor FROM PROFESOR WHERE Email=:email LIMIT 1"); $stmt->execute([':email'=>$email]); if($stmt->fetch()){echo json_encode(['status'=>'error','message'=>'Este correo ya está registrado como profesor.']);exit;}
+        $stmt=$conexion->prepare("INSERT INTO PROFESOR (Nombre,Apellido,Especialidad,Email) VALUES (:nombre,:apellido,:especialidad,:email)"); $stmt->execute([':nombre'=>$nombre,':apellido'=>$apellido,':especialidad'=>$especialidad,':email'=>$email]);
+        echo json_encode(['status'=>'success','message'=>'Profesor registrado correctamente.']); exit;
+    } else {
+        http_response_code(405);
+        echo json_encode(['status' => 'error', 'message' => 'Método no permitido.']);
+        exit;
+    }
+
+} catch (PDOException $e) {
+    error_log("Error en api/profesores.php: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Hubo un problema en el servidor.']);
+}
