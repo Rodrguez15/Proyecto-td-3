@@ -1,0 +1,55 @@
+<?php
+// Descripción: endpoint/configuración de seminarios. Gestiona la comunicación entre la interfaz y la base de datos.
+require_once dirname(__DIR__).'/config/conexion.php';
+if(session_status()===PHP_SESSION_NONE)session_start();
+header('Content-Type: application/json; charset=utf-8');
+if(!isset($_SESSION['usuario_id'])) {
+    http_response_code(401);
+    echo json_encode(['status'=>'error','message'=>'No autorizado.']);
+    exit;
+}
+$admin=($_SESSION['usuario_rol']??'')==='Administrador';
+try {
+    if($_SERVER['REQUEST_METHOD']==='GET') {
+        // Para los alumnos devolvemos además si ya están inscriptos.
+        $uid=(int)($_SESSION['usuario_id']??0);
+        $alumnoStmt=$conexion->prepare('SELECT ID_Alumno FROM ALUMNO WHERE ID_Usuario=?');
+        $alumnoStmt->execute([$uid]);
+        $alumno=$alumnoStmt->fetchColumn();
+
+        if($alumno) {
+            $s=$conexion->prepare("SELECT s.ID_Seminario,COALESCE(NULLIF(s.Nombre,''),s.Titulo) Nombre,s.Descripcion,s.Costo,s.Fecha,IF(i.ID_Ins_seminario IS NULL,0,1) Inscrito,i.ID_Ins_seminario FROM SEMINARIO s LEFT JOIN INSCRIPCION_SEMINARIO i ON i.ID_Seminario=s.ID_Seminario AND i.ID_Alumno=? ORDER BY s.Fecha ASC");
+            $s->execute([(int)$alumno]);
+        } else {
+            $s=$conexion->query("SELECT ID_Seminario,COALESCE(NULLIF(Nombre,''),Titulo) Nombre,Descripcion,Costo,Fecha,0 Inscrito,NULL ID_Ins_seminario FROM SEMINARIO ORDER BY Fecha ASC");
+        }
+
+        echo json_encode(['status'=>'success','seminarios'=>$s->fetchAll()]);
+        exit;
+    }
+    if(!$admin) {
+        http_response_code(403);
+        echo json_encode(['status'=>'error','message'=>'Solo el administrador puede modificar seminarios.']);
+        exit;
+    }
+    $a=$_POST['accion']??'crear';
+    $id=(int)($_POST['id']??0);
+    if($a==='eliminar') {
+        $conexion->prepare('DELETE FROM SEMINARIO WHERE ID_Seminario=?')->execute([$id]);
+        echo json_encode(['status'=>'success','message'=>'Seminario/evento eliminado.']);
+        exit;
+    }
+    $n=trim($_POST['nombre']??'');
+    $d=trim($_POST['descripcion']??'');
+    $c=(float)($_POST['costo']??0);
+    $f=trim($_POST['fecha']??'');
+    if($n===''||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$f))throw new Exception('Datos inválidos.');
+    if($a==='editar')$conexion->prepare('UPDATE SEMINARIO SET Nombre=?,Descripcion=?,Costo=?,Fecha=?,Titulo=? WHERE ID_Seminario=?')->execute([$n,$d,$c,$f,$n,$id]);
+    else$conexion->prepare('INSERT INTO SEMINARIO(Nombre,Descripcion,Costo,Fecha,Titulo,Ponente) VALUES(?,?,?,?,?,?)')->execute([$n,$d,$c,$f,$n,'Por confirmar']);
+    echo json_encode(['status'=>'success','message'=>$a==='editar'?'Seminario/evento actualizado.':'Seminario/evento creado.']);
+}
+catch(Throwable $e) {
+    error_log('api/seminarios: '.$e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status'=>'error','message'=>'No se pudo modificar el seminario/evento.']);
+}
