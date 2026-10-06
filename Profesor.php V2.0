@@ -1,0 +1,58 @@
+<?php
+// Portal exclusivo del profesor.
+require_once 'config/autenticacion.php';
+
+if (($_SESSION['usuario_rol'] ?? '') !== 'Profesor') {
+    header('Location: index.php');
+    exit;
+}
+
+$nombre = $_SESSION['usuario_nombre'] ?? 'Profesor';
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal del profesor - VILAMIR</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="about-page">
+    <header class="navbar">
+        <div class="logo">Escuela Combate VILAMIR</div>
+        <nav>
+            <a href="index.php">Inicio</a>
+            <a href="profesor.php">Mi espacio</a>
+            <a href="clases.php">Clases</a>
+            <a href="grupos.php">Grupos</a>
+            <a href="seminarios.php">Seminarios y eventos</a>
+            <a href="logout.php">Cerrar sesión</a>
+        </nav>
+    </header>
+
+    <main class="about-container">
+        <section class="hero">
+            <h1>Portal del profesor</h1>
+            <p>Bienvenido, <strong><?= htmlspecialchars($nombre) ?></strong>.</p>
+            <p>Selecciona las disciplinas que enseñas para consultar los grupos correspondientes.</p>
+        </section>
+
+        <section class="project-info">
+            <h2>🥋 Disciplinas que enseño</h2>
+            <p class="small">Marca las disciplinas que puedes enseñar y guarda tu selección.</p>
+            <div id="listaDisciplinasProfesor" class="cards-grid"></div>
+            <button id="btnGuardarDisciplinasProfesor">Guardar disciplinas</button>
+            <p id="mensajeProfesorPortal"></p>
+        </section>
+
+        <section class="project-info">
+            <h2>👥 Mis grupos</h2>
+            <p class="small">Aquí aparecen los grupos relacionados con las disciplinas que seleccionaste.</p>
+            <div id="listaGruposProfesor" class="cards-grid"></div>
+        </section>
+    </main>
+
+    <footer>© 2026 VILAMIR</footer>
+    <script src="js/profesor.js"></script>
+</body>
+</html>
