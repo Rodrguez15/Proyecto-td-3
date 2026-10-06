@@ -1,0 +1,206 @@
+-- ============================================================
+-- MMA SYSTEMS - Base de datos de la Escuela de Combate VILAMIR
+-- Importar en phpMyAdmin (XAMPP/WAMP) o con: mysql -u root < mma_systems.sql
+-- ============================================================
+
+CREATE DATABASE IF NOT EXISTS mma_systems
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+USE mma_systems;
+
+-- ------------------------------------------------------------
+-- USUARIO: cuentas de acceso (login)
+-- La columna se llama "Contraseña" (con ñ) y guarda el hash bcrypt
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS USUARIO (
+    ID_Usuario INT AUTO_INCREMENT PRIMARY KEY,
+    Email VARCHAR(150) NOT NULL UNIQUE,
+    Contraseña VARCHAR(255) NOT NULL,
+    Rol ENUM('Administrador', 'Profesor', 'Alumno') NOT NULL DEFAULT 'Alumno',
+    Creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- ALUMNO: datos de cada estudiante (1 a 1 con USUARIO)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ALUMNO (
+    ID_Alumno INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Usuario INT NOT NULL,
+    Nombre VARCHAR(100) NOT NULL,
+    Apellido VARCHAR(100) NOT NULL,
+    Creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_alumno_usuario (ID_Usuario),
+    CONSTRAINT fk_alumno_usuario FOREIGN KEY (ID_Usuario)
+        REFERENCES USUARIO(ID_Usuario) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- RESPONSABLE: madre, padre, tutor legal u otro adulto a cargo
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS RESPONSABLE (
+    ID_Responsable INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Alumno INT NOT NULL,
+    Nombre VARCHAR(100) NOT NULL,
+    Apellido VARCHAR(100) NOT NULL,
+    Parentesco VARCHAR(60) NOT NULL,
+    Cedula VARCHAR(30) NULL,
+    Telefono VARCHAR(40) NULL,
+    Direccion VARCHAR(255) NULL,
+    CONSTRAINT fk_responsable_alumno FOREIGN KEY (ID_Alumno)
+        REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- PROFESOR: cuerpo docente (Email propio; ID_Usuario opcional)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS PROFESOR (
+    ID_Profesor INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Usuario INT NULL,
+    Nombre VARCHAR(100) NOT NULL,
+    Apellido VARCHAR(100) NOT NULL,
+    Telefono VARCHAR(40) NULL,
+    Cedula VARCHAR(30) NULL,
+    Direccion VARCHAR(255) NULL,
+    Especialidad VARCHAR(150) NULL,
+    Email VARCHAR(150) NULL UNIQUE,
+    Creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_profesor_usuario FOREIGN KEY (ID_Usuario)
+        REFERENCES USUARIO(ID_Usuario) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- CLASE: disciplinas publicadas en la grilla de horarios
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS CLASE (
+    ID_Clase INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre VARCHAR(100) NOT NULL,
+    Horario VARCHAR(100) NOT NULL,
+    Dias VARCHAR(200) NOT NULL,
+    Creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+
+-- ------------------------------------------------------------
+-- INSCRIPCION_CLASE: relación entre alumnos y clases/cursos
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS INSCRIPCION_CLASE (
+    ID_Inscripcion INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Alumno INT NOT NULL,
+    ID_Clase INT NOT NULL,
+    Fecha_Inscripcion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_alumno_clase (ID_Alumno, ID_Clase),
+    CONSTRAINT fk_inscripcion_alumno FOREIGN KEY (ID_Alumno)
+        REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE,
+    CONSTRAINT fk_inscripcion_clase FOREIGN KEY (ID_Clase)
+        REFERENCES CLASE(ID_Clase) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- GRUPO: divisiones operativas de entrenamiento
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS GRUPO (
+    ID_Grupo INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre VARCHAR(100) NOT NULL,
+    ID_Disciplina INT NULL,
+    Cupo_maximo INT NOT NULL DEFAULT 20,
+    Nivel ENUM('Principiante', 'Intermedio', 'Avanzado', 'Competencia') NOT NULL DEFAULT 'Principiante',
+    Descripcion TEXT NULL,
+    Creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+
+-- ------------------------------------------------------------
+-- DISCIPLINA: clases que ofrece la academia
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS DISCIPLINA (
+    ID_Disciplina INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre VARCHAR(150) NOT NULL,
+    Descripcion TEXT NULL,
+    Costo DECIMAL(10,2) NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- PROFESOR_DISCIPLINA: disciplinas elegidas por cada profesor
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS PROFESOR_DISCIPLINA (
+    ID_Profesor INT NOT NULL,
+    ID_Disciplina INT NOT NULL,
+    Fecha_asignacion DATE NOT NULL DEFAULT (CURRENT_DATE),
+    PRIMARY KEY (ID_Profesor, ID_Disciplina),
+    CONSTRAINT fk_profdisc_profesor FOREIGN KEY (ID_Profesor) REFERENCES PROFESOR(ID_Profesor) ON DELETE CASCADE,
+    CONSTRAINT fk_profdisc_disciplina FOREIGN KEY (ID_Disciplina) REFERENCES DISCIPLINA(ID_Disciplina) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- INSCRIPCION_GRUPO_ALUMNO: alumnos inscritos en grupos
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS INSCRIPCION_GRUPO_ALUMNO (
+    ID_Inscripcion INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Alumno INT NOT NULL,
+    ID_Grupo INT NOT NULL,
+    Fecha_inscripcion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Estado VARCHAR(40) NOT NULL DEFAULT 'Activa',
+    UNIQUE KEY uq_alumno_grupo (ID_Alumno, ID_Grupo),
+    CONSTRAINT fk_iga_alumno FOREIGN KEY (ID_Alumno) REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE,
+    CONSTRAINT fk_iga_grupo FOREIGN KEY (ID_Grupo) REFERENCES GRUPO(ID_Grupo) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- INSCRIPCION_GRUPO_PROFESOR: profesores asignados/inscritos a grupos
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS INSCRIPCION_GRUPO_PROFESOR (
+    ID_Inscripcion INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Profesor INT NOT NULL,
+    ID_Grupo INT NOT NULL,
+    Fecha_inscripcion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Estado VARCHAR(40) NOT NULL DEFAULT 'Activa',
+    UNIQUE KEY uq_profesor_grupo (ID_Profesor, ID_Grupo),
+    CONSTRAINT fk_igp_profesor FOREIGN KEY (ID_Profesor) REFERENCES PROFESOR(ID_Profesor) ON DELETE CASCADE,
+    CONSTRAINT fk_igp_grupo FOREIGN KEY (ID_Grupo) REFERENCES GRUPO(ID_Grupo) ON DELETE CASCADE
+) ENGINE=InnoDB;
+-- ------------------------------------------------------------
+-- SEMINARIO: eventos especiales
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS SEMINARIO (
+    ID_Seminario INT AUTO_INCREMENT PRIMARY KEY,
+    Nombre VARCHAR(150) NOT NULL,
+    Titulo VARCHAR(150) NULL,
+    Descripcion TEXT NULL,
+    Costo DECIMAL(10,2) NOT NULL DEFAULT 0,
+    Ponente VARCHAR(150) NULL,
+    Fecha DATE NOT NULL,
+    Creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- INSCRIPCION_SEMINARIO: alumnos inscriptos a seminarios/eventos
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS INSCRIPCION_SEMINARIO (
+    ID_Ins_seminario INT AUTO_INCREMENT PRIMARY KEY,
+    ID_Alumno INT NOT NULL,
+    ID_Seminario INT NOT NULL,
+    Fecha_ins DATE NOT NULL,
+    Estado VARCHAR(40) NOT NULL DEFAULT 'Activa',
+    UNIQUE KEY uq_ins_seminario (ID_Alumno, ID_Seminario),
+    CONSTRAINT fk_ins_sem_alumno FOREIGN KEY (ID_Alumno)
+        REFERENCES ALUMNO(ID_Alumno) ON DELETE CASCADE,
+    CONSTRAINT fk_ins_sem_seminario FOREIGN KEY (ID_Seminario)
+        REFERENCES SEMINARIO(ID_Seminario) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Usuario administrador inicial
+--   Email: vilamir@gmail.com
+--   Contraseña: Admin123!
+-- (cambiar la contraseña después del primer acceso)
+-- ------------------------------------------------------------
+INSERT INTO USUARIO (Email, Contraseña, Rol)
+VALUES ('vilamir@gmail.com', '$2y$12$u0kskfOvF15IqaFWQjOp1Ol52hCDGnOEtE05KwDwOP5k7oDbWFc5e', 'Administrador')
+ON DUPLICATE KEY UPDATE
+    Contraseña = VALUES(Contraseña),
+    Rol = 'Administrador';
+
+-- Relación de grupos con disciplinas.
+ALTER TABLE GRUPO ADD CONSTRAINT fk_grupo_disciplina FOREIGN KEY (ID_Disciplina)
+    REFERENCES DISCIPLINA(ID_Disciplina) ON DELETE SET NULL;
