@@ -1,0 +1,188 @@
+// ============================================================
+// GRUPOS - listado, creación y autoinscripción.
+// Alumnos: se controla el cupo máximo.
+// Profesores: pueden inscribirse si enseñan la disciplina del grupo.
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", function () {
+    const btnGuardar = document.getElementById("btnGuardarGrupo");
+    const contenedor = document.getElementById("contenedorGrupos");
+    const mensajeEl = document.getElementById("mensajeGrupo");
+    const selectDisciplina = document.getElementById("disciplinaGrupo");
+
+    let rolActual = "";
+
+    function mostrarMensaje(texto, esError) {
+        if (!mensajeEl) return;
+        mensajeEl.className = esError ? "error message-center" : "success message-center";
+        mensajeEl.textContent = texto;
+    }
+
+    async function cargarDisciplinas() {
+        if (!selectDisciplina) return;
+        try {
+            const respuesta = await fetch("api/clases.php");
+            const data = await respuesta.json();
+
+            selectDisciplina.innerHTML = '<option value="">Seleccione una disciplina</option>';
+            if (data.status === "success") {
+                (data.clases || []).forEach(function (disciplina) {
+                    const option = document.createElement("option");
+                    option.value = disciplina.ID_Clase;
+                    option.textContent = disciplina.Nombre;
+                    selectDisciplina.appendChild(option);
+                });
+            }
+        } catch (error) {
+            selectDisciplina.innerHTML = '<option value="">No se pudieron cargar</option>';
+        }
+    }
+
+    function crearTarjeta(grupo) {
+        const div = document.createElement("article");
+        div.className = "member group-card";
+
+        const h2 = document.createElement("h2");
+        h2.textContent = grupo.Nombre || "";
+
+        const disciplina = document.createElement("p");
+        disciplina.innerHTML = "<strong>Disciplina:</strong> ";
+        const disciplinaTexto = document.createElement("span");
+        disciplinaTexto.textContent = grupo.Disciplina || "Sin disciplina";
+        disciplina.appendChild(disciplinaTexto);
+
+        const nivel = document.createElement("p");
+        nivel.innerHTML = "<strong>Nivel:</strong> ";
+        const nivelTexto = document.createElement("span");
+        nivelTexto.textContent = grupo.Nivel || "";
+        nivel.appendChild(nivelTexto);
+
+        const cupo = document.createElement("p");
+        cupo.innerHTML = "<strong>Cupo:</strong> ";
+        const cupoTexto = document.createElement("span");
+        cupoTexto.textContent =
+            `${grupo.Alumnos_inscritos || 0} / ${grupo.Cupo_maximo || 0} alumnos`;
+        cupo.appendChild(cupoTexto);
+
+        const descripcion = document.createElement("p");
+        descripcion.textContent = grupo.Descripcion || "";
+
+        div.appendChild(h2);
+        div.appendChild(disciplina);
+        div.appendChild(nivel);
+        div.appendChild(cupo);
+        div.appendChild(descripcion);
+
+        // Los administradores gestionan grupos; alumnos/profesores se inscriben.
+        if (rolActual === "Alumno" || rolActual === "Profesor") {
+            const boton = document.createElement("button");
+            const inscrito = rolActual === "Alumno"
+                ? Number(grupo.Alumno_inscrito) === 1
+                : Number(grupo.Profesor_inscrito) === 1;
+
+            boton.textContent = inscrito ? "Darse de baja" : "Inscribirme";
+            boton.className = inscrito ? "btn-secondary" : "";
+
+            boton.addEventListener("click", async function () {
+                const formData = new FormData();
+                formData.append("accion", inscrito ? "cancelar_inscripcion" : "inscribir");
+                formData.append("id_grupo", grupo.ID_Grupo);
+
+                try {
+                    const respuesta = await fetch("api/grupos.php", {
+                        method: "POST",
+                        body: formData
+                    });
+                    const data = await respuesta.json();
+                    mostrarMensaje(data.message || "Operación realizada.", data.status !== "success");
+
+                    if (data.status === "success") {
+                        cargarGrupos();
+                    }
+                } catch (error) {
+                    mostrarMensaje("Error de comunicación con el servidor.", true);
+                }
+            });
+
+            div.appendChild(boton);
+        }
+
+        return div;
+    }
+
+    function renderGrupos(grupos) {
+        contenedor.innerHTML = "";
+
+        if (!grupos || grupos.length === 0) {
+            const p = document.createElement("p");
+            p.textContent = "No hay grupos configurados todavía para la academia.";
+            contenedor.appendChild(p);
+            return;
+        }
+
+        grupos.forEach(function (grupo) {
+            contenedor.appendChild(crearTarjeta(grupo));
+        });
+    }
+
+    async function cargarGrupos() {
+        try {
+            const respuesta = await fetch("api/grupos.php");
+            const data = await respuesta.json();
+
+            if (data.status === "success") {
+                rolActual = data.rol || "";
+                renderGrupos(data.grupos || []);
+            } else {
+                mostrarMensaje(data.message || "Error al cargar grupos.", true);
+            }
+        } catch (error) {
+            mostrarMensaje("Error en la comunicación con el servidor.", true);
+        }
+    }
+
+    if (btnGuardar) {
+        btnGuardar.addEventListener("click", async function () {
+            const nombre = document.getElementById("nombreGrupo").value.trim();
+            const nivel = document.getElementById("nivelGrupo").value;
+            const descripcion = document.getElementById("descripcionGrupo").value.trim();
+            const idDisciplina = document.getElementById("disciplinaGrupo").value;
+            const cupo = document.getElementById("cupoGrupo").value;
+
+            if (!nombre || !descripcion || !idDisciplina || Number(cupo) < 1) {
+                mostrarMensaje("Completa todos los datos del grupo.", true);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("nombre", nombre);
+            formData.append("nivel", nivel);
+            formData.append("descripcion", descripcion);
+            formData.append("id_disciplina", idDisciplina);
+            formData.append("cupo_maximo", cupo);
+
+            try {
+                const respuesta = await fetch("api/grupos.php", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await respuesta.json();
+
+                mostrarMensaje(data.message || "Operación realizada.", data.status !== "success");
+
+                if (data.status === "success") {
+                    document.getElementById("nombreGrupo").value = "";
+                    document.getElementById("descripcionGrupo").value = "";
+                    document.getElementById("cupoGrupo").value = "20";
+                    document.getElementById("disciplinaGrupo").value = "";
+                    cargarGrupos();
+                }
+            } catch (error) {
+                mostrarMensaje("Error en la comunicación con el servidor.", true);
+            }
+        });
+    }
+
+    cargarDisciplinas();
+    cargarGrupos();
+});
