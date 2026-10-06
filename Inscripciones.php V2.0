@@ -1,0 +1,78 @@
+<?php
+// Descripción: endpoint/configuración de inscripciones. Gestiona la comunicación entre la interfaz y la base de datos.
+require_once dirname(__DIR__) . '/config/conexion.php';
+if (session_status() === PHP_SESSION_NONE) session_start();
+header('Content-Type: application/json; charset=utf-8');
+if (!isset($_SESSION['usuario_id'])) {
+    http_response_code(401);
+    echo json_encode(['status'=>'error','message'=>'No autorizado.']);
+    exit;
+}
+try {
+    $uid=(int)$_SESSION['usuario_id'];
+    $rol=$_SESSION['usuario_rol']??'';
+    $s=$conexion->prepare('SELECT ID_Alumno FROM ALUMNO WHERE ID_Usuario=? LIMIT 1');
+    $s->execute([$uid]);
+    $al=$s->fetch();
+    if(!$al && $rol==='Alumno') {
+        http_response_code(403);
+        echo json_encode(['status'=>'error','message'=>'No se encontró el alumno asociado.']);
+        exit;
+    }
+    $aid=(int)($al['ID_Alumno']??0);
+    if($_SERVER['REQUEST_METHOD']==='GET') {
+        $s=$conexion->prepare("SELECT d.ID_Disciplina,d.Nombre,d.Descripcion,d.Costo,CASE WHEN i.ID_Ins_disciplina IS NULL THEN 0 ELSE 1 END AS Inscrito
+      FROM DISCIPLINA d LEFT JOIN INSCRIPCION_DISCIPLINA i ON i.ID_Disciplina=d.ID_Disciplina AND i.ID_Alumno=? ORDER BY d.Nombre");
+        $s->execute([$aid]);
+        echo json_encode(['status'=>'success','clases'=>$s->fetchAll()]);
+        exit;
+    }
+    if($_SERVER['REQUEST_METHOD']==='POST') {
+        if($rol!=='Alumno') {
+            http_response_code(403);
+            echo json_encode(['status'=>'error','message'=>'Solo los alumnos pueden inscribirse.']);
+            exit;
+        }
+        $did=(int)($_POST['id_disciplina']??0);
+        if($did<=0) {
+            echo json_encode(['status'=>'error','message'=>'Disciplina no válida.']);
+            exit;
+        }
+        $s=$conexion->prepare('SELECT ID_Disciplina FROM DISCIPLINA WHERE ID_Disciplina=?');
+        $s->execute([$did]);
+        if(!$s->fetch()) {
+            echo json_encode(['status'=>'error','message'=>'La disciplina no existe.']);
+            exit;
+        }
+        $s=$conexion->prepare('SELECT ID_Ins_disciplina FROM INSCRIPCION_DISCIPLINA WHERE ID_Alumno=? AND ID_Disciplina=?');
+        $s->execute([$aid,$did]);
+        if($s->fetch()) {
+            echo json_encode(['status'=>'error','message'=>'Ya estás inscrito en esta clase.']);
+            exit;
+        }
+        $s=$conexion->prepare("INSERT INTO INSCRIPCION_DISCIPLINA(ID_Alumno,ID_Disciplina,Fecha_ins,Estado) VALUES(?,?,CURDATE(),'Activa')");
+        $s->execute([$aid,$did]);
+        echo json_encode(['status'=>'success','message'=>'Inscripción realizada correctamente.']);
+        exit;
+    }
+    if($_SERVER['REQUEST_METHOD']==='DELETE') {
+        if($rol!=='Alumno') {
+            http_response_code(403);
+            echo json_encode(['status'=>'error','message'=>'No autorizado.']);
+            exit;
+        }
+        parse_str(file_get_contents('php://input'),$in);
+        $did=(int)($in['id_disciplina']??0);
+        $s=$conexion->prepare('DELETE FROM INSCRIPCION_DISCIPLINA WHERE ID_Alumno=? AND ID_Disciplina=?');
+        $s->execute([$aid,$did]);
+        echo json_encode(['status'=>'success','message'=>$s->rowCount()?'Te has dado de baja.':'No estabas inscrito.']);
+        exit;
+    }
+    http_response_code(405);
+    echo json_encode(['status'=>'error','message'=>'Método no permitido.']);
+}
+catch(Throwable $e) {
+    error_log('inscripciones: '.$e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status'=>'error','message'=>'No se pudo completar la operación.']);
+}
