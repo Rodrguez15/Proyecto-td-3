@@ -1,0 +1,208 @@
+// Panel de administración.
+// Este archivo controla las pestañas, formularios, tablas y operaciones CRUD.
+// La comunicación con PHP se realiza mediante fetch() y la API api/admin.php.
+
+const API = 'api/admin.php';
+
+let current = 'alumnos';
+let editing = null;
+let rows = [];
+
+// Configuración de los campos de cada módulo.
+const modules = {
+    alumnos: {
+        title: '👨‍🎓 Alumnos',
+        fields: [
+            ['nombre', 'Nombre', 'text', 1],
+            ['apellido', 'Apellido', 'text', 1],
+            ['email', 'Correo', 'email', 1],
+            ['password', 'Contraseña', 'password', 0],
+            ['fecha_nacimiento', 'Fecha de nacimiento', 'date', 0],
+            ['direccion', 'Dirección', 'text', 0],
+            ['telefono', 'Teléfono', 'text', 0],
+            ['cobertura_medica', 'Cobertura médica', 'text', 0]
+        ]
+    },
+
+    profesores: {
+        title: '👨‍🏫 Profesores',
+        fields: [
+            ['nombre', 'Nombre', 'text', 1],
+            ['apellido', 'Apellido', 'text', 1],
+            ['telefono', 'Teléfono', 'text', 0],
+            ['cedula', 'Cédula', 'text', 0],
+            ['direccion', 'Dirección', 'text', 0],
+            ['especialidad', 'Especialidad', 'text', 0],
+            ['email', 'Correo', 'email', 1],
+            ['password', 'Contraseña inicial (opcional)', 'password', 0]
+        ]
+    },
+
+    responsables: {
+        title: '👨‍👩‍👧 Responsables',
+        fields: [
+            ['id_alumno', 'Alumno', 'alumnos', 1],
+            ['nombre', 'Nombre', 'text', 1],
+            ['apellido', 'Apellido', 'text', 1],
+            ['parentesco', 'Parentesco', 'parentesco', 1],
+            ['cedula', 'Cédula', 'text', 0],
+            ['telefono', 'Teléfono', 'text', 0],
+            ['direccion', 'Dirección', 'text', 0]
+        ]
+    },
+
+    disciplinas: {
+        title: '🥋 Disciplinas',
+        fields: [
+            ['nombre', 'Nombre', 'text', 1],
+            ['descripcion', 'Descripción', 'textarea', 0],
+            ['costo', 'Costo', 'number', 0]
+        ]
+    },
+
+    grupos: {
+        title: '👥 Grupos',
+        fields: [
+            ['nombre', 'Nombre', 'text', 1],
+            ['id_disciplina', 'Disciplina', 'disciplinas', 0],
+            ['cupo_maximo', 'Cupo máximo', 'number', 1]
+        ]
+    },
+
+    horarios: {
+        title: '🕐 Horarios',
+        fields: [
+            ['dia', 'Día', 'dia', 1],
+            ['hora_inicio', 'Hora inicio', 'time', 1],
+            ['hora_fin', 'Hora fin', 'time', 1]
+        ]
+    },
+
+    pagos: {
+        title: '💰 Pagos',
+        fields: [
+            ['id_alumno', 'Alumno', 'alumnos', 1],
+            ['tipo', 'Tipo', 'text', 1],
+            ['fecha', 'Fecha', 'date', 1],
+            ['importe', 'Importe', 'number', 1],
+            ['estado', 'Estado', 'pago', 1],
+            ['metodo_pago', 'Método de pago', 'text', 0]
+        ]
+    },
+
+    notificaciones: {
+        title: '🔔 Notificaciones',
+        fields: [
+            ['id_alumno', 'Alumno', 'alumnos', 1],
+            ['estado', 'Estado', 'notificacion', 1],
+            ['mensaje', 'Mensaje', 'textarea', 1],
+            ['fecha', 'Fecha', 'date', 1]
+        ]
+    },
+
+    seminarios: {
+        title: '🎓 Seminarios y eventos',
+        fields: [
+            ['nombre', 'Nombre', 'text', 1],
+            ['descripcion', 'Descripción', 'textarea', 0],
+            ['costo', 'Costo', 'number', 0],
+            ['fecha', 'Fecha', 'date', 1]
+        ]
+    },
+
+    promociones: {
+        title: '🎁 Promociones',
+        fields: [
+            ['nombre', 'Nombre', 'text', 1],
+            ['descripcion', 'Descripción', 'textarea', 0],
+            ['descuento', 'Descuento (%)', 'number', 1]
+        ]
+    },
+
+    usuarios: {
+        title: '⚙️ Usuarios y roles',
+        fields: [
+            ['email', 'Correo', 'email', 1],
+            ['password', 'Contraseña', 'password', 0],
+            ['rol', 'Rol', 'rol', 1]
+        ]
+    },
+
+    inscripciones_disciplina: {
+        title: '📝 Inscripciones a disciplinas',
+        fields: [
+            ['id_alumno', 'Alumno', 'alumnos', 1],
+            ['id_disciplina', 'Disciplina', 'disciplinas', 1],
+            ['fecha', 'Fecha', 'date', 1],
+            ['estado', 'Estado', 'estadoIns', 1]
+        ]
+    },
+
+    inscripciones_seminario: {
+        title: '🎓 Inscripciones a seminarios',
+        fields: [
+            ['id_alumno', 'Alumno', 'alumnos', 1],
+            ['id_seminario', 'Seminario', 'seminarios', 1],
+            ['fecha', 'Fecha', 'date', 1],
+            ['estado', 'Estado', 'estadoIns', 1]
+        ]
+    }
+};
+
+// Escapa caracteres especiales para evitar insertar HTML inseguro.
+const esc = (value) => String(value ?? '').replace(
+    /[&<>"']/g,
+    (match) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[match])
+);
+
+// Realiza una consulta GET a la API administrativa.
+async function get(entity) {
+    const response = await fetch(
+        `${API}?entity=${encodeURIComponent(entity)}`
+    );
+
+    return response.json();
+}
+
+// Inicializa las pestañas, las estadísticas y el primer módulo.
+async function init() {
+    const tabs = document.getElementById('tabs');
+
+    tabs.innerHTML = Object.entries(modules)
+        .map(
+            ([key, module]) =>
+                `<button onclick="show('${key}')">${module.title}</button>`
+        )
+        .join('');
+
+    await stats();
+    await show('alumnos');
+}
+
+// Consulta y muestra los contadores del dashboard.
+async function stats() {
+    const data = await get('dashboard');
+
+    if (data.status !== 'success') {
+        return;
+    }
+
+    const labels = {
+        alumnos: 'Alumnos',
+        profesores: 'Profesores',
+        responsables: 'Responsables',
+        disciplinas: 'Disciplinas',
+        grupos: 'Grupos',
+        horarios: 'Horarios',
+        pagos: 'Pagos',
+        notificaciones: 'Notificaciones',
+        seminarios: 'Seminarios',
+        promociones: 'Promociones',
+        usuarios: 'Usuarios'
+    };
