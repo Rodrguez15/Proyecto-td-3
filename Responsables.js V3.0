@@ -1,0 +1,201 @@
+// Módulo de responsables de alumnos.
+// Permite crear, editar y eliminar responsables desde la interfaz.
+
+const API_RESPONSABLES = 'api/responsables.php';
+let responsables = [];
+let responsableEditando = null;
+
+const app = document.getElementById('responsablesApp');
+
+// Escapa caracteres especiales antes de insertar datos en HTML.
+function escapar(valor) {
+    return String(valor ?? '').replace(/[&<>"']/g, (caracter) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[caracter]));
+}
+
+// Carga alumnos para poder asociar un responsable al alumno correcto.
+async function cargarAlumnos() {
+    const respuesta = await fetch(`${API_RESPONSABLES}?accion=alumnos`);
+    return respuesta.json();
+}
+
+// Obtiene todos los responsables registrados.
+async function cargarResponsables() {
+    const respuesta = await fetch(API_RESPONSABLES);
+    const datos = await respuesta.json();
+    responsables = datos.rows || [];
+    renderizarTabla();
+}
+
+// Construye el formulario y la tabla del módulo.
+async function iniciar() {
+    const datosAlumnos = await cargarAlumnos();
+    const alumnos = datosAlumnos.rows || [];
+
+    app.innerHTML = `
+        <h2>Registrar responsable</h2>
+        <div class="form">
+            <label>Alumno
+                <select id="responsableAlumno" required>
+                    <option value="">Seleccionar alumno</option>
+                    ${alumnos.map((alumno) => `
+                        <option value="${alumno.ID_Alumno}">
+                            ${escapar(alumno.Nombre + ' ' + alumno.Apellido)}
+                        </option>
+                    `).join('')}
+                </select>
+            </label>
+            <label>Nombre
+                <input id="responsableNombre" type="text" required>
+            </label>
+            <label>Apellido
+                <input id="responsableApellido" type="text" required>
+            </label>
+            <label>Parentesco
+                <select id="responsableParentesco" required>
+                    <option value="">Seleccionar</option>
+                    <option value="Madre">Madre</option>
+                    <option value="Padre">Padre</option>
+                    <option value="Tutor legal">Tutor legal</option>
+                    <option value="Otro adulto responsable">Otro adulto responsable</option>
+                </select>
+            </label>
+            <label>Cédula
+                <input id="responsableCedula" type="text">
+            </label>
+            <label>Teléfono
+                <input id="responsableTelefono" type="text">
+            </label>
+            <label>Dirección
+                <input id="responsableDireccion" type="text">
+            </label>
+            <div class="wide actions">
+                <button id="btnResponsable" onclick="guardarResponsable()">Guardar responsable</button>
+                <button class="cancel" onclick="cancelarEdicion()">Cancelar</button>
+            </div>
+            <p id="mensajeResponsable" class="wide"></p>
+        </div>
+        <h2>Responsables registrados</h2>
+        <div id="tablaResponsables" class="table-wrap"></div>
+    `;
+
+    await cargarResponsables();
+}
+
+// Envía el formulario a PHP para crear o actualizar un responsable.
+async function guardarResponsable() {
+    const form = new FormData();
+    form.append('accion', responsableEditando ? 'editar' : 'crear');
+    form.append('id', responsableEditando?.ID_Responsable || '');
+    form.append('id_alumno', document.getElementById('responsableAlumno').value);
+    form.append('nombre', document.getElementById('responsableNombre').value.trim());
+    form.append('apellido', document.getElementById('responsableApellido').value.trim());
+    form.append('parentesco', document.getElementById('responsableParentesco').value);
+    form.append('cedula', document.getElementById('responsableCedula').value.trim());
+    form.append('telefono', document.getElementById('responsableTelefono').value.trim());
+    form.append('direccion', document.getElementById('responsableDireccion').value.trim());
+
+    const respuesta = await fetch(API_RESPONSABLES, { method: 'POST', body: form });
+    const datos = await respuesta.json();
+    const mensaje = document.getElementById('mensajeResponsable');
+
+    mensaje.textContent = datos.message || '';
+    mensaje.className = `wide ${datos.status === 'success' ? 'ok' : 'err'}`;
+
+    if (datos.status === 'success') {
+        cancelarEdicion();
+        await cargarResponsables();
+    }
+}
+
+// Coloca un registro existente en el formulario.
+function editarResponsable(indice) {
+    responsableEditando = responsables[indice];
+    const r = responsableEditando;
+
+    document.getElementById('responsableAlumno').value = r.ID_Alumno;
+    document.getElementById('responsableNombre').value = r.Nombre || '';
+    document.getElementById('responsableApellido').value = r.Apellido || '';
+    document.getElementById('responsableParentesco').value = r.Parentesco || '';
+    document.getElementById('responsableCedula').value = r.Cedula || '';
+    document.getElementById('responsableTelefono').value = r.Telefono || '';
+    document.getElementById('responsableDireccion').value = r.Direccion || '';
+    document.getElementById('btnResponsable').textContent = 'Guardar cambios';
+}
+
+// Cancela la edición y devuelve el formulario al estado inicial.
+function cancelarEdicion() {
+    responsableEditando = null;
+    const form = document.querySelector('.form');
+    if (form) {
+        form.querySelectorAll('input, select').forEach((elemento) => {
+            elemento.value = '';
+        });
+    }
+    const boton = document.getElementById('btnResponsable');
+    if (boton) boton.textContent = 'Guardar responsable';
+}
+
+// Elimina un responsable después de pedir confirmación.
+async function eliminarResponsable(indice) {
+    if (!confirm('¿Eliminar este responsable?')) return;
+
+    const form = new FormData();
+    form.append('accion', 'eliminar');
+    form.append('id', responsables[indice].ID_Responsable);
+
+    const respuesta = await fetch(API_RESPONSABLES, { method: 'POST', body: form });
+    const datos = await respuesta.json();
+    alert(datos.message || 'Operación finalizada.');
+
+    if (datos.status === 'success') {
+        await cargarResponsables();
+    }
+}
+
+// Genera la tabla con la información de los responsables.
+function renderizarTabla() {
+    const tabla = document.getElementById('tablaResponsables');
+
+    if (!responsables.length) {
+        tabla.innerHTML = '<p class="small">No hay responsables registrados.</p>';
+        return;
+    }
+
+    tabla.innerHTML = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Alumno</th>
+                    <th>Responsable</th>
+                    <th>Parentesco</th>
+                    <th>Cédula</th>
+                    <th>Teléfono</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${responsables.map((r, indice) => `
+                    <tr>
+                        <td>${escapar(r.Alumno)}</td>
+                        <td>${escapar(r.Nombre + ' ' + r.Apellido)}</td>
+                        <td>${escapar(r.Parentesco)}</td>
+                        <td>${escapar(r.Cedula)}</td>
+                        <td>${escapar(r.Telefono)}</td>
+                        <td>
+                            <button onclick="editarResponsable(${indice})">Editar</button>
+                            <button class="danger" onclick="eliminarResponsable(${indice})">Eliminar</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+iniciar();
